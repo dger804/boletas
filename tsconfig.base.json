@@ -6,6 +6,11 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@boletas/shared": ["packages/shared/src/index.ts"],
+      "@boletas/shared/*": ["packages/shared/src/*"]
+    }
   }
 }
