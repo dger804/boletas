@@ -1,0 +1,25 @@
+{
+  "name": "@boletas/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 0.0.0.0 --port 4321",
+    "build": "astro build",
+    "preview": "astro preview --host 0.0.0.0 --port 4321",
+    "typecheck": "astro check",
+    "test": "echo \"No web tests yet\""
+  },
+  "dependencies": {
+    "@boletas/shared": "workspace:*",
+    "@tailwindcss/vite": "^4.1.8",
+    "astro": "^6.2.0",
+    "lucide-astro": "^0.468.0",
+    "tailwindcss": "^4.1.8"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  }
+}
