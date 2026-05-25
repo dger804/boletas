@@ -36,9 +36,10 @@ pnpm start
 
 1. Entender el dominio en `docs/01-alcance-mvp.md`.
 2. Revisar la arquitectura en `docs/02-arquitectura-y-despliegue.md`.
-3. Leer los commits en orden con `git log --oneline --reverse`.
-4. Ejecutar localmente con `pnpm dev`.
-5. Conectar GitHub y Hostinger cuando el MVP tenga persistencia.
+3. Preparar el entorno con `docs/03-desarrollo-local.md`.
+4. Conectar GitHub y Hostinger con `docs/04-github-hostinger-cd.md`.
+5. Leer los commits en orden con `git log --oneline --reverse`.
+6. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 
