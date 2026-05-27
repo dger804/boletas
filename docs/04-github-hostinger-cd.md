@@ -35,7 +35,7 @@ En hPanel:
 
 1. Abrir la seccion de Node.js Web Apps.
 2. Crear una nueva app.
-3. Elegir el subdominio, por ejemplo `boletas.tudominio.com`.
+3. Elegir el subdominio `boletas.corporacionceer.com`.
 4. Conectar GitHub como metodo de despliegue.
 5. Seleccionar el repositorio y la rama `main`.
 6. Configurar version Node.js 24 si esta disponible.
@@ -60,23 +60,23 @@ Si Hostinger separa los campos:
 ```txt
 NODE_ENV=production
 PORT=3000
-PUBLIC_APP_URL=https://boletas.tudominio.com
+PUBLIC_APP_URL=https://boletas.corporacionceer.com
 PUBLIC_API_BASE_URL=/api
-CORS_ORIGIN=https://boletas.tudominio.com
+CORS_ORIGIN=https://boletas.corporacionceer.com
 WEB_DIST_PATH=apps/web/dist
 DATABASE_URL=mysql://usuario:password@host:3306/boletas_eventos
 ```
 
 ## Subdominio y SSL
 
-1. Crear `boletas.tudominio.com` en Hostinger.
+1. Crear `boletas.corporacionceer.com` en Hostinger.
 2. Apuntarlo a la app Node.js.
 3. Activar SSL desde hPanel.
 4. Verificar:
 
 ```txt
-https://boletas.tudominio.com
-https://boletas.tudominio.com/api/health
+https://boletas.corporacionceer.com
+https://boletas.corporacionceer.com/api/health
 ```
 
 ## Alternativa VPS

@@ -5,7 +5,7 @@
 La app se publica en un solo subdominio, por ejemplo:
 
 ```txt
-https://boletas.tudominio.com
+https://boletas.corporacionceer.com
 ```
 
 Rutas:
@@ -48,7 +48,7 @@ pnpm start
 PORT=3000
 WEB_DIST_PATH=apps/web/dist
 PUBLIC_API_BASE_URL=/api
-CORS_ORIGIN=https://boletas.tudominio.com
+CORS_ORIGIN=https://boletas.corporacionceer.com
 DATABASE_URL=mysql://usuario:password@host:3306/boletas_eventos
 ```
 
@@ -64,7 +64,7 @@ Flujo recomendado:
 6. Definir rama de despliegue, normalmente `main`.
 7. Usar `pnpm build` como build command y `pnpm start` como start command.
 8. Configurar variables de entorno en Hostinger.
-9. Apuntar el subdominio `boletas.tudominio.com` a Hostinger y activar SSL.
+9. Apuntar el subdominio `boletas.corporacionceer.com` a Hostinger y activar SSL.
 
 ## Siguiente decision tecnica
 
