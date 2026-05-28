@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
-import type { VerifyPaymentDto } from "./dto";
+import { VerifyPaymentDto } from "./dto";
 import { EventStoreService } from "./event-store.service";
 
 @Controller("payments")

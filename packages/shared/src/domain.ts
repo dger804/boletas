@@ -1,17 +1,26 @@
-export type EventStatus = "draft" | "active" | "closed";
+export const EVENT_STATUSES = ["draft", "active", "closed"] as const;
 
-export type TicketStatus =
-  | "available"
-  | "assigned"
-  | "reserved"
-  | "sold"
-  | "paid"
-  | "used"
-  | "void";
+export type EventStatus = (typeof EVENT_STATUSES)[number];
 
-export type PaymentMethod = "transfer" | "cash";
+export const TICKET_STATUSES = [
+  "available",
+  "assigned",
+  "reserved",
+  "sold",
+  "paid",
+  "used",
+  "void"
+] as const;
 
-export type EvidenceStatus = "pending" | "approved" | "rejected";
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+export const PAYMENT_METHODS = ["transfer", "cash"] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const EVIDENCE_STATUSES = ["pending", "approved", "rejected"] as const;
+
+export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 
 export interface EventRecord {
   id: string;

@@ -90,9 +90,11 @@ Ver el paso a paso operativo en `docs/07-frontend-hostinger-actions.md`.
 
 ## Siguiente decision tecnica
 
-La siguiente iteracion deberia agregar persistencia con MySQL. La opcion sugerida es Prisma porque permite:
+Antes de agregar persistencia real se agrego validacion runtime en la API para rechazar payloads invalidos. Ver `docs/08-validacion-runtime-y-persistencia.md`.
+
+La siguiente iteracion deberia agregar persistencia con un motor externo. La opcion sugerida es Prisma porque permite:
 
 - Modelar eventos, boletas, distribuidores y pagos.
 - Ejecutar migraciones versionadas.
-- Usar MySQL de Hostinger en produccion.
+- Usar MySQL o PostgreSQL segun el proveedor elegido.
 - Usar una base local para desarrollo.

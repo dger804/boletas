@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
-import type { AssignTicketDto, CheckInTicketDto, RegisterSaleDto } from "./dto";
+import { AssignTicketDto, CheckInTicketDto, RegisterSaleDto } from "./dto";
 import { EventStoreService } from "./event-store.service";
 
 @Controller("tickets")

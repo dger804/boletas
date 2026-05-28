@@ -41,9 +41,10 @@ pnpm start
 5. Aplicar el playbook de seguridad en `docs/05-playbook-seguridad.md`.
 6. Desplegar backend en Render si Hostinger no tiene Node.js con `docs/06-render-backend.md`.
 7. Desplegar frontend en Hostinger con GitHub Actions usando `docs/07-frontend-hostinger-actions.md`.
-8. Leer los commits en orden con `git log --oneline --reverse`.
-9. Ejecutar localmente con `pnpm dev`.
+8. Activar validacion runtime antes de persistencia con `docs/08-validacion-runtime-y-persistencia.md`.
+9. Leer los commits en orden con `git log --oneline --reverse`.
+10. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 
-Esta primera base deja el camino listo para construir el MVP por etapas. La persistencia final se propone con MySQL de Hostinger y Prisma en una siguiente iteracion.
+Esta primera base deja el camino listo para construir el MVP por etapas. Antes de guardar datos reales, la API ya debe validar payloads en runtime y la persistencia final debe definirse con un motor externo y migraciones versionadas.
