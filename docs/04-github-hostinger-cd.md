@@ -31,6 +31,8 @@ pnpm install --frozen-lockfile
 
 ## Crear la app Node.js en Hostinger
 
+Esta seccion aplica si el plan de Hostinger tiene Node.js Web Apps. Si el plan solo permite frontend estatico, usar `docs/06-render-backend.md` para el backend en Render.
+
 En hPanel:
 
 1. Abrir la seccion de Node.js Web Apps.
@@ -61,7 +63,7 @@ Si Hostinger separa los campos:
 NODE_ENV=production
 PORT=3000
 PUBLIC_APP_URL=https://boletas.corporacionceer.com
-PUBLIC_API_BASE_URL=/api
+PUBLIC_API_BASE_URL=https://api-boletas.corporacionceer.com/api
 CORS_ORIGIN=https://boletas.corporacionceer.com
 WEB_DIST_PATH=apps/web/dist
 DATABASE_URL=mysql://usuario:password@host:3306/boletas_eventos

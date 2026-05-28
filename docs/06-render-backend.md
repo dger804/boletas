@@ -6,13 +6,13 @@ Este documento cubre la opcion de desplegar el backend NestJS en Render cuando e
 
 ```txt
 boletas.corporacionceer.com      -> frontend estatico en Hostinger
-api.boletas.corporacionceer.com  -> backend NestJS en Render
+api-boletas.corporacionceer.com  -> backend NestJS en Render
 ```
 
 El frontend debe apuntar al backend con:
 
 ```txt
-PUBLIC_API_BASE_URL=https://api.boletas.corporacionceer.com/api
+PUBLIC_API_BASE_URL=https://api-boletas.corporacionceer.com/api
 ```
 
 El backend debe aceptar el origen del frontend con:
@@ -20,6 +20,14 @@ El backend debe aceptar el origen del frontend con:
 ```txt
 CORS_ORIGIN=https://boletas.corporacionceer.com
 ```
+
+Esta variable se revisa en Render:
+
+```txt
+boletas-api > Environment > Environment Variables > CORS_ORIGIN
+```
+
+Si se cambia, guardar y redeploy/restart del servicio para que NestJS tome el nuevo valor.
 
 ## Por que usar Render
 
@@ -85,16 +93,17 @@ Cuando el servicio funcione con la URL de Render:
 4. Agregar:
 
 ```txt
-api.boletas.corporacionceer.com
+api-boletas.corporacionceer.com
 ```
 
 5. Render mostrara los registros DNS requeridos.
-6. En Hostinger, crear el registro `CNAME` indicado por Render.
-7. Esperar validacion SSL.
-8. Probar:
+6. En Hostinger, eliminar registros `A` o `AAAA` existentes con nombre `api-boletas` si los hay.
+7. En Hostinger, crear el registro `CNAME` indicado por Render.
+8. Esperar validacion SSL.
+9. Probar:
 
 ```txt
-https://api.boletas.corporacionceer.com/api/health
+https://api-boletas.corporacionceer.com/api/health
 ```
 
 ## Configurar el frontend en Hostinger
@@ -102,7 +111,7 @@ https://api.boletas.corporacionceer.com/api/health
 Si Hostinger solo despliega el frontend estatico, debe usar:
 
 ```txt
-PUBLIC_API_BASE_URL=https://api.boletas.corporacionceer.com/api
+PUBLIC_API_BASE_URL=https://api-boletas.corporacionceer.com/api
 ```
 
 Y el build de Astro debe publicarse desde:

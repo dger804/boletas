@@ -15,6 +15,27 @@ Rutas:
 
 NestJS servira la carpeta `apps/web/dist` y tambien expondra sus controladores bajo `/api`. Asi se evita manejar dos subdominios y se simplifica CORS.
 
+## Decision actual de despliegue
+
+Como el plan actual de Hostinger no ejecuta Node.js, el despliegue practico queda separado:
+
+```txt
+https://boletas.corporacionceer.com      -> frontend estatico en Hostinger
+https://api-boletas.corporacionceer.com  -> backend NestJS en Render
+```
+
+En esta variante, el frontend usa:
+
+```txt
+PUBLIC_API_BASE_URL=https://api-boletas.corporacionceer.com/api
+```
+
+Y el backend en Render usa:
+
+```txt
+CORS_ORIGIN=https://boletas.corporacionceer.com
+```
+
 ## Por que esta forma encaja con Hostinger
 
 Hostinger permite sitios estaticos, pero NestJS necesita un runtime Node.js. Para esta arquitectura hay dos caminos:
@@ -47,7 +68,7 @@ pnpm start
 ```txt
 PORT=3000
 WEB_DIST_PATH=apps/web/dist
-PUBLIC_API_BASE_URL=/api
+PUBLIC_API_BASE_URL=https://api-boletas.corporacionceer.com/api
 CORS_ORIGIN=https://boletas.corporacionceer.com
 DATABASE_URL=mysql://usuario:password@host:3306/boletas_eventos
 ```
