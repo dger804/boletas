@@ -17,17 +17,25 @@ git push -u origin main
 El workflow `.github/workflows/ci.yml` ejecuta:
 
 ```bash
-pnpm install --no-frozen-lockfile
+pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
 pnpm build
 ```
 
-Cuando exista `pnpm-lock.yaml`, se puede cambiar a:
+## Despliegue continuo actual del frontend
+
+Como el backend ya vive en Render, Hostinger queda como hosting estatico para el frontend Astro.
+
+El workflow `.github/workflows/deploy-frontend.yml` ejecuta:
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm build:shared
+pnpm build:web
 ```
+
+Despues sube `apps/web/dist/` a Hostinger por FTPS. La configuracion detallada esta en `docs/07-frontend-hostinger-actions.md`.
 
 ## Crear la app Node.js en Hostinger
 
@@ -46,14 +54,14 @@ En hPanel:
 Comandos sugeridos:
 
 ```bash
-pnpm install --no-frozen-lockfile
+pnpm install --frozen-lockfile
 pnpm build
 pnpm start
 ```
 
 Si Hostinger separa los campos:
 
-- Install command: `pnpm install --no-frozen-lockfile`
+- Install command: `pnpm install --frozen-lockfile`
 - Build command: `pnpm build`
 - Start command: `pnpm start`
 

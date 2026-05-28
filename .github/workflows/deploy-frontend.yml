@@ -1,0 +1,81 @@
+name: Deploy Frontend to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-frontend.yml
+      - apps/web/**
+      - packages/shared/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - tsconfig.base.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hostinger-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy Astro frontend
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_API_BASE_URL: https://api-boletas.corporacionceer.com/api
+      HOSTINGER_FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
+      HOSTINGER_FTP_USERNAME: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+      HOSTINGER_FTP_PASSWORD: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+      HOSTINGER_FTP_SERVER_DIR: ${{ secrets.HOSTINGER_FTP_SERVER_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm build:shared
+
+      - name: Build Astro frontend
+        run: pnpm build:web
+
+      - name: Check Hostinger FTP secrets
+        id: ftp-secrets
+        shell: bash
+        run: |
+          if [[ -n "$HOSTINGER_FTP_SERVER" && -n "$HOSTINGER_FTP_USERNAME" && -n "$HOSTINGER_FTP_PASSWORD" && -n "$HOSTINGER_FTP_SERVER_DIR" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Hostinger FTP secrets are not fully configured. Build succeeded, deployment skipped."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Hostinger via FTPS
+        if: steps.ftp-secrets.outputs.ready == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./apps/web/dist/
+          server-dir: ${{ secrets.HOSTINGER_FTP_SERVER_DIR }}
+          log-level: minimal

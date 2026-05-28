@@ -40,8 +40,9 @@ pnpm start
 4. Conectar GitHub y Hostinger con `docs/04-github-hostinger-cd.md`.
 5. Aplicar el playbook de seguridad en `docs/05-playbook-seguridad.md`.
 6. Desplegar backend en Render si Hostinger no tiene Node.js con `docs/06-render-backend.md`.
-7. Leer los commits en orden con `git log --oneline --reverse`.
-8. Ejecutar localmente con `pnpm dev`.
+7. Desplegar frontend en Hostinger con GitHub Actions usando `docs/07-frontend-hostinger-actions.md`.
+8. Leer los commits en orden con `git log --oneline --reverse`.
+9. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 
