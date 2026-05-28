@@ -81,7 +81,7 @@ Cuenta registrada en Hostinger:
 ```txt
 Hostname FTP=ftp.corporacionceer.com
 Usuario FTP=u198462083.boletas
-Directorio asignado=/home/u198462083/domains/corporacionceer.com/public_html
+Directorio asignado=/home/u198462083/domains/corporacionceer.com/public_html/boletas
 ```
 
 Secretos sugeridos en GitHub:
@@ -93,7 +93,9 @@ HOSTINGER_FTP_PASSWORD=guardar la clave solo como secreto de GitHub
 HOSTINGER_FTP_SERVER_DIR=/
 ```
 
-Usar `HOSTINGER_FTP_SERVER_DIR=/` solo si el directorio asignado a la cuenta FTP es el directorio publico real de `boletas.corporacionceer.com`. Si el subdominio tiene una carpeta propia dentro de `public_html`, usar esa ruta relativa, por ejemplo `/boletas/`.
+Como esta cuenta FTP ya apunta directamente a `public_html/boletas`, usar `HOSTINGER_FTP_SERVER_DIR=/`.
+
+Si mas adelante se usa una cuenta FTP que apunte a `public_html`, entonces el directorio remoto tendria que cambiar a `/boletas/`.
 
 No guardar la contrasena FTP en el repositorio ni en documentos versionados.
 
