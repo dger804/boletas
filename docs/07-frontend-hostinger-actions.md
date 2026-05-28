@@ -74,6 +74,29 @@ HOSTINGER_FTP_SERVER_DIR=/public_html/
 
 El valor exacto de `HOSTINGER_FTP_SERVER_DIR` depende del directorio raiz del subdominio `boletas.corporacionceer.com` en Hostinger. Debe terminar con `/`.
 
+## Cuenta FTP creada para este proyecto
+
+Cuenta registrada en Hostinger:
+
+```txt
+Hostname FTP=ftp.corporacionceer.com
+Usuario FTP=u198462083.boletas
+Directorio asignado=/home/u198462083/domains/corporacionceer.com/public_html
+```
+
+Secretos sugeridos en GitHub:
+
+```txt
+HOSTINGER_FTP_SERVER=ftp.corporacionceer.com
+HOSTINGER_FTP_USERNAME=u198462083.boletas
+HOSTINGER_FTP_PASSWORD=guardar la clave solo como secreto de GitHub
+HOSTINGER_FTP_SERVER_DIR=/
+```
+
+Usar `HOSTINGER_FTP_SERVER_DIR=/` solo si el directorio asignado a la cuenta FTP es el directorio publico real de `boletas.corporacionceer.com`. Si el subdominio tiene una carpeta propia dentro de `public_html`, usar esa ruta relativa, por ejemplo `/boletas/`.
+
+No guardar la contrasena FTP en el repositorio ni en documentos versionados.
+
 ## Donde obtener los datos en Hostinger
 
 En hPanel:
