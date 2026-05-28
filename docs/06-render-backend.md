@@ -34,7 +34,7 @@ name: boletas-api
 runtime: node
 plan: free
 branch: main
-buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+buildCommand: pnpm install --frozen-lockfile && pnpm build
 startCommand: pnpm start
 healthCheckPath: /api/health
 ```
@@ -48,6 +48,8 @@ WEB_DIST_PATH=apps/web/dist
 PUBLIC_API_BASE_URL=/api
 CORS_ORIGIN=se pide en Render porque depende del dominio real
 ```
+
+No ejecutes `corepack enable` en Render. Render ya incluye `pnpm` en su runtime nativo de Node.js y `corepack enable` puede fallar porque intenta modificar binarios del sistema.
 
 ## Crear el servicio desde Render
 
