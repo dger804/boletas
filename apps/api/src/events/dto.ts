@@ -11,13 +11,16 @@ import {
   MaxLength,
   Min
 } from "class-validator";
-import {
-  EVENT_STATUSES,
-  EVIDENCE_STATUSES,
-  PAYMENT_METHODS
-} from "@boletas/shared";
+import type { EventStatus, EvidenceStatus, PaymentMethod } from "@boletas/shared";
 
 const OPTIONAL_URL_OPTIONS = { require_protocol: true };
+const EVENT_STATUS_VALUES: EventStatus[] = ["draft", "active", "closed"];
+const EVIDENCE_STATUS_VALUES: EvidenceStatus[] = [
+  "pending",
+  "approved",
+  "rejected"
+];
+const PAYMENT_METHOD_VALUES: PaymentMethod[] = ["transfer", "cash"];
 
 export class CreateEventDto {
   @IsString()
@@ -41,8 +44,8 @@ export class CreateEventDto {
   expectedAttendees?: number;
 
   @IsOptional()
-  @IsIn(EVENT_STATUSES)
-  status?: (typeof EVENT_STATUSES)[number];
+  @IsIn(EVENT_STATUS_VALUES)
+  status?: EventStatus;
 }
 
 export class CreateDistributorDto {
@@ -120,8 +123,8 @@ export class RegisterSaleDto {
   @MaxLength(40)
   buyerPhone?: string;
 
-  @IsIn(PAYMENT_METHODS)
-  method!: (typeof PAYMENT_METHODS)[number];
+  @IsIn(PAYMENT_METHOD_VALUES)
+  method!: PaymentMethod;
 
   @Type(() => Number)
   @IsInt()
@@ -160,8 +163,8 @@ export class CheckInTicketDto {
 }
 
 export class VerifyPaymentDto {
-  @IsIn(EVIDENCE_STATUSES)
-  status!: (typeof EVIDENCE_STATUSES)[number];
+  @IsIn(EVIDENCE_STATUS_VALUES)
+  status!: EvidenceStatus;
 
   @IsString()
   @IsNotEmpty()
