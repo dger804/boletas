@@ -79,8 +79,8 @@ Si `/api/events` responde `[]`, no es error: significa que la base real esta vac
 ## Pendientes
 
 1. Configurar `ADMIN_API_TOKEN` en Render para proteger endpoints persistentes.
-2. Crear seed controlado de datos demo o crear eventos desde API.
+2. Ejecutar el seed demo controlado documentado en `docs/12-seed-demo-prisma.md`.
 3. Agregar tests de integracion con una base de datos temporal.
 4. Agregar auditoria real en cambios de estado.
 5. Definir autenticacion y roles antes de usar datos reales de compradores.
-6. Mover el frontend de dashboard estatico a consumo de API persistente.
+6. Mover el frontend de dashboard estatico a consumo de API persistente sin exponer `ADMIN_API_TOKEN`.

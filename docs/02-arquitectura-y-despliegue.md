@@ -102,6 +102,8 @@ La primera migracion Prisma crea `events`, `distributors`, `tickets`, `payment_e
 
 Los endpoints persistentes de eventos, boletas y pagos quedan protegidos con `ADMIN_API_TOKEN` hasta implementar login y roles. Ver `docs/11-admin-api-token.md`.
 
+Los datos demo persistentes se cargan con `pnpm db:seed` y requieren `DATABASE_URL` en el entorno de ejecucion. Ver `docs/12-seed-demo-prisma.md`.
+
 La siguiente iteracion deberia agregar persistencia con un motor externo. La opcion sugerida es Prisma porque permite:
 
 - Modelar eventos, boletas, distribuidores y pagos.

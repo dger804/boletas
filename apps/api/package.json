@@ -7,6 +7,7 @@
     "build": "pnpm prisma:generate && nest build",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "pnpm prisma:generate && ts-node --project tsconfig.json prisma/seed.ts",
     "start:prod": "node dist/apps/api/src/main.js",
     "typecheck": "pnpm prisma:generate && tsc --noEmit -p tsconfig.json",
     "test": "pnpm prisma:generate && jest --passWithNoTests"

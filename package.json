@@ -14,6 +14,7 @@
     "build:shared": "pnpm --filter @boletas/shared build",
     "build:web": "pnpm --filter @boletas/web build",
     "build:api": "pnpm --filter @boletas/api build",
+    "db:seed": "pnpm --filter @boletas/api db:seed",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @boletas/api test",
     "start": "pnpm --filter @boletas/api start:prod"
