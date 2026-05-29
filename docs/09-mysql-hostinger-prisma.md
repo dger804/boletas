@@ -57,6 +57,7 @@ Prisma queda instalado solo en la API:
 
 ```txt
 apps/api/prisma/schema.prisma
+apps/api/prisma/migrations/
 apps/api/src/database/prisma.service.ts
 ```
 
@@ -70,6 +71,35 @@ datasource db {
 ```
 
 Se usa Prisma 6 porque encaja con el NestJS actual compilado a CommonJS. Prisma 7 exige driver adapters y un flujo ESM que conviene evaluar en una etapa separada.
+
+## Migraciones
+
+La primera migracion versionada es:
+
+```txt
+apps/api/prisma/migrations/20260529203500_init_ticketing_domain/migration.sql
+```
+
+Tablas esperadas:
+
+```txt
+events
+distributors
+tickets
+payment_evidences
+audit_logs
+_prisma_migrations
+```
+
+`_prisma_migrations` la administra Prisma para saber que migraciones ya fueron aplicadas.
+
+El deploy de Render ejecuta:
+
+```bash
+pnpm --filter @boletas/api prisma:migrate:deploy
+```
+
+Ese comando aplica migraciones pendientes usando `DATABASE_URL`.
 
 ## Prueba de conexion
 
@@ -101,19 +131,12 @@ Si falla, la API responde `503` con un mensaje generico. La ruta publica `/api/h
 
 ## Lo que esta etapa no hace
 
-- No crea tablas de negocio todavia.
-- No reemplaza el store en memoria.
+- No reemplaza el store en memoria todavia.
 - No guarda compradores, pagos ni evidencias.
-- No ejecuta migraciones en Hostinger.
+- No carga datos iniciales.
 
 ## Siguiente etapa
 
-Crear migraciones Prisma para:
-
-1. Eventos.
-2. Distribuidores.
-3. Boletas.
-4. Pagos y evidencias.
-5. Auditoria de cambios de estado.
+Reemplazar gradualmente el `EventStoreService` en memoria por repositorios Prisma, empezando por eventos y lectura de dashboard.
 
 Antes de guardar datos reales, cerrar autenticacion y roles minimos.

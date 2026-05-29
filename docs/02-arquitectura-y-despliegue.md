@@ -96,6 +96,8 @@ Antes de agregar persistencia real se agrego validacion runtime en la API para r
 
 Tambien se agrego Prisma con una prueba de conexion a MySQL remoto en `GET /api/health/db`. Ver `docs/09-mysql-hostinger-prisma.md`.
 
+La primera migracion Prisma crea `events`, `distributors`, `tickets`, `payment_evidences` y `audit_logs`. Render aplica migraciones pendientes durante el build con `pnpm --filter @boletas/api prisma:migrate:deploy`.
+
 La siguiente iteracion deberia agregar persistencia con un motor externo. La opcion sugerida es Prisma porque permite:
 
 - Modelar eventos, boletas, distribuidores y pagos.
