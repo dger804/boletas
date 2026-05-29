@@ -11,6 +11,8 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleDestroy
 {
+  private readonly configured: boolean;
+
   constructor(config: ConfigService) {
     const databaseUrl = config.get<string>("DATABASE_URL");
 
@@ -23,6 +25,12 @@ export class PrismaService
           }
         : undefined
     });
+
+    this.configured = Boolean(databaseUrl);
+  }
+
+  isConfigured() {
+    return this.configured;
   }
 
   async onModuleDestroy() {
@@ -30,6 +38,10 @@ export class PrismaService
   }
 
   async checkConnection() {
+    if (!this.configured) {
+      throw new ServiceUnavailableException("database is not configured");
+    }
+
     const startedAt = Date.now();
 
     try {

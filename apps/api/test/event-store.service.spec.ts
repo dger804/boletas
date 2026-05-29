@@ -1,22 +1,54 @@
 import { BadRequestException } from "@nestjs/common";
+import { PrismaService } from "../src/database/prisma.service";
 import { EventStoreService } from "../src/events/event-store.service";
 
 describe("EventStoreService", () => {
-  it("runs the sale, payment approval and check-in workflow", () => {
+  it("uses Prisma when the database is configured", async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        createdAt: new Date("2026-05-29T00:00:00.000Z"),
+        date: new Date("2026-08-01T20:00:00.000Z"),
+        expectedAttendees: 120,
+        id: "evt_db",
+        name: "Evento DB",
+        status: "active",
+        updatedAt: new Date("2026-05-29T00:00:00.000Z"),
+        venue: "Auditorio DB"
+      }
+    ]);
+    const prisma = {
+      event: { findMany },
+      isConfigured: () => true
+    } as unknown as PrismaService;
+    const store = new EventStoreService(prisma);
+
+    await expect(store.listEvents()).resolves.toMatchObject([
+      {
+        id: "evt_db",
+        name: "Evento DB",
+        status: "active"
+      }
+    ]);
+    expect(findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: "asc" }
+    });
+  });
+
+  it("runs the sale, payment approval and check-in workflow", async () => {
     const store = new EventStoreService();
 
-    const event = store.createEvent({
+    const event = await store.createEvent({
       date: "2026-08-01T20:00:00.000Z",
       expectedAttendees: 50,
       name: "Evento Test",
       status: "active",
       venue: "Auditorio Test"
     });
-    const distributor = store.addDistributor(event.id, {
+    const distributor = await store.addDistributor(event.id, {
       name: "Equipo Comercial",
       phone: "+57 300 000 0000"
     });
-    const tickets = store.createTicketBatch(event.id, {
+    const tickets = await store.createTicketBatch(event.id, {
       capitalizationAmount: 15000,
       codePrefix: "VIP",
       price: 90000,
@@ -27,13 +59,13 @@ describe("EventStoreService", () => {
       throw new Error("ticket was not created");
     }
 
-    const assigned = store.assignTicket(ticket.id, {
+    const assigned = await store.assignTicket(ticket.id, {
       distributorId: distributor.id,
       recipientName: "Comprador Potencial"
     });
     expect(assigned.status).toBe("assigned");
 
-    const sale = store.registerSale(ticket.id, {
+    const sale = await store.registerSale(ticket.id, {
       amount: 90000,
       buyerName: "Comprador Test",
       method: "transfer",
@@ -42,20 +74,20 @@ describe("EventStoreService", () => {
     expect(sale.ticket.status).toBe("sold");
     expect(sale.payment.status).toBe("pending");
 
-    const approved = store.verifyPayment(sale.payment.id, {
+    const approved = await store.verifyPayment(sale.payment.id, {
       reviewedBy: "Admin Test",
       status: "approved"
     });
     expect(approved.ticket.status).toBe("paid");
     expect(approved.payment.status).toBe("approved");
 
-    const used = store.checkInTicket(ticket.id, {
+    const used = await store.checkInTicket(ticket.id, {
       checkedInBy: "Porteria Test"
     });
     expect(used.status).toBe("used");
     expect(used.checkedInBy).toBe("Porteria Test");
 
-    const dashboard = store.getEventDashboard(event.id);
+    const dashboard = await store.getEventDashboard(event.id);
     expect(dashboard.totals).toMatchObject({
       capitalization: 15000,
       grossSales: 90000,
@@ -64,9 +96,9 @@ describe("EventStoreService", () => {
     });
   });
 
-  it("does not allow check-in before payment approval", () => {
+  it("does not allow check-in before payment approval", async () => {
     const store = new EventStoreService();
-    const tickets = store.createTicketBatch("evt_demo", {
+    const tickets = await store.createTicketBatch("evt_demo", {
       price: 90000,
       quantity: 1
     });
@@ -75,16 +107,16 @@ describe("EventStoreService", () => {
       throw new Error("ticket was not created");
     }
 
-    store.registerSale(ticket.id, {
+    await store.registerSale(ticket.id, {
       amount: 90000,
       buyerName: "Comprador Test",
       method: "cash"
     });
 
-    expect(() =>
+    await expect(
       store.checkInTicket(ticket.id, {
         checkedInBy: "Porteria Test"
       })
-    ).toThrow(BadRequestException);
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

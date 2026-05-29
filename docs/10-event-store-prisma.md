@@ -1,0 +1,85 @@
+# EventStoreService con Prisma
+
+Esta etapa inicia el reemplazo del `EventStoreService` en memoria por Prisma.
+
+## Decision
+
+`EventStoreService` ahora usa Prisma cuando `DATABASE_URL` esta configurada.
+
+```txt
+Render -> DATABASE_URL existe -> EventStoreService usa MySQL con Prisma
+Local sin DATABASE_URL -> EventStoreService usa datos demo en memoria
+```
+
+Esto permite:
+
+1. Usar MySQL real en produccion.
+2. Mantener desarrollo local simple mientras no tengamos base local.
+3. Evitar que la API local falle solo por no tener `DATABASE_URL`.
+
+## Metodos migrados
+
+Los metodos publicos del servicio ya tienen camino Prisma:
+
+```txt
+listEvents
+createEvent
+getEventDashboard
+addDistributor
+createTicketBatch
+listTickets
+assignTicket
+registerSale
+checkInTicket
+listPayments
+verifyPayment
+```
+
+El contrato HTTP no cambia. Los controladores siguen exponiendo:
+
+```txt
+GET    /api/events
+POST   /api/events
+GET    /api/events/:eventId/dashboard
+POST   /api/events/:eventId/distributors
+POST   /api/events/:eventId/tickets/batch
+GET    /api/tickets
+PATCH  /api/tickets/:ticketId/assign
+PATCH  /api/tickets/:ticketId/sale
+PATCH  /api/tickets/:ticketId/check-in
+GET    /api/payments
+PATCH  /api/payments/:paymentId/verify
+```
+
+## Fallback local
+
+El fallback en memoria sigue existiendo, pero solo se usa si Prisma no esta configurado.
+
+Este fallback conserva el evento demo:
+
+```txt
+evt_demo
+```
+
+La razon es practica: permite ejecutar tests y desarrollo local inicial sin conectarse a Hostinger.
+
+## Produccion
+
+En Render, como `DATABASE_URL` ya existe, las operaciones anteriores leen y escriben en MySQL.
+
+Despues del deploy se puede validar:
+
+```txt
+https://api-boletas.corporacionceer.com/api/health/db
+https://api-boletas.corporacionceer.com/api/events
+```
+
+Si `/api/events` responde `[]`, no es error: significa que la base real esta vacia y aun no se han creado eventos persistentes.
+
+## Pendientes
+
+1. Crear seed controlado de datos demo o crear eventos desde API.
+2. Agregar tests de integracion con una base de datos temporal.
+3. Agregar auditoria real en cambios de estado.
+4. Definir autenticacion y roles antes de usar datos reales de compradores.
+5. Mover el frontend de dashboard estatico a consumo de API persistente.

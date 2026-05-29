@@ -140,3 +140,7 @@ Si falla, la API responde `503` con un mensaje generico. La ruta publica `/api/h
 Reemplazar gradualmente el `EventStoreService` en memoria por repositorios Prisma, empezando por eventos y lectura de dashboard.
 
 Antes de guardar datos reales, cerrar autenticacion y roles minimos.
+
+## Iteracion posterior
+
+El primer reemplazo del `EventStoreService` por Prisma se documenta en `docs/10-event-store-prisma.md`.

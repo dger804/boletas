@@ -43,8 +43,9 @@ pnpm start
 7. Desplegar frontend en Hostinger con GitHub Actions usando `docs/07-frontend-hostinger-actions.md`.
 8. Activar validacion runtime antes de persistencia con `docs/08-validacion-runtime-y-persistencia.md`.
 9. Conectar MySQL remoto de Hostinger con Prisma usando `docs/09-mysql-hostinger-prisma.md`.
-10. Leer los commits en orden con `git log --oneline --reverse`.
-11. Ejecutar localmente con `pnpm dev`.
+10. Reemplazar gradualmente `EventStoreService` por Prisma con `docs/10-event-store-prisma.md`.
+11. Leer los commits en orden con `git log --oneline --reverse`.
+12. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 
