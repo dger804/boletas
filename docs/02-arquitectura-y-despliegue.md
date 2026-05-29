@@ -100,6 +100,8 @@ La primera migracion Prisma crea `events`, `distributors`, `tickets`, `payment_e
 
 `EventStoreService` ya usa Prisma cuando `DATABASE_URL` existe. En desarrollo local sin `DATABASE_URL`, conserva un fallback en memoria para no bloquear pruebas y aprendizaje. Ver `docs/10-event-store-prisma.md`.
 
+Los endpoints persistentes de eventos, boletas y pagos quedan protegidos con `ADMIN_API_TOKEN` hasta implementar login y roles. Ver `docs/11-admin-api-token.md`.
+
 La siguiente iteracion deberia agregar persistencia con un motor externo. La opcion sugerida es Prisma porque permite:
 
 - Modelar eventos, boletas, distribuidores y pagos.

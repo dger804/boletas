@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { AdminTokenGuard } from "../auth/admin-token.guard";
 import {
   CreateDistributorDto,
   CreateEventDto,
@@ -7,6 +8,7 @@ import {
 import { EventStoreService } from "./event-store.service";
 
 @Controller("events")
+@UseGuards(AdminTokenGuard)
 export class EventsController {
   constructor(private readonly store: EventStoreService) {}
 
