@@ -73,6 +73,8 @@ CORS_ORIGIN=https://boletas.corporacionceer.com
 DATABASE_URL=mysql://usuario:password@host:3306/boletas_eventos
 ```
 
+La base MySQL remota actual esta en Hostinger y se documenta sin contrasena en `docs/09-mysql-hostinger-prisma.md`.
+
 ## GitHub y despliegue continuo
 
 Flujo actual recomendado:
@@ -91,6 +93,8 @@ Ver el paso a paso operativo en `docs/07-frontend-hostinger-actions.md`.
 ## Siguiente decision tecnica
 
 Antes de agregar persistencia real se agrego validacion runtime en la API para rechazar payloads invalidos. Ver `docs/08-validacion-runtime-y-persistencia.md`.
+
+Tambien se agrego Prisma con una prueba de conexion a MySQL remoto en `GET /api/health/db`. Ver `docs/09-mysql-hostinger-prisma.md`.
 
 La siguiente iteracion deberia agregar persistencia con un motor externo. La opcion sugerida es Prisma porque permite:
 

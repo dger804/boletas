@@ -42,8 +42,9 @@ pnpm start
 6. Desplegar backend en Render si Hostinger no tiene Node.js con `docs/06-render-backend.md`.
 7. Desplegar frontend en Hostinger con GitHub Actions usando `docs/07-frontend-hostinger-actions.md`.
 8. Activar validacion runtime antes de persistencia con `docs/08-validacion-runtime-y-persistencia.md`.
-9. Leer los commits en orden con `git log --oneline --reverse`.
-10. Ejecutar localmente con `pnpm dev`.
+9. Conectar MySQL remoto de Hostinger con Prisma usando `docs/09-mysql-hostinger-prisma.md`.
+10. Leer los commits en orden con `git log --oneline --reverse`.
+11. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 

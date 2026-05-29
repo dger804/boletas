@@ -99,3 +99,7 @@ La siguiente iteracion debe decidir la persistencia real:
    - auditoria de cambios de estado.
 
 Antes de guardar datos reales de compradores o evidencias de pago, tambien debe definirse autenticacion y roles.
+
+## Iteracion posterior
+
+La conexion inicial a MySQL remoto de Hostinger con Prisma se documenta en `docs/09-mysql-hostinger-prisma.md`.
