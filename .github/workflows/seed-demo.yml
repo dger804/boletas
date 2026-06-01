@@ -1,0 +1,79 @@
+name: Seed Demo Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type seed-demo to run the demo seed against DATABASE_URL"
+        required: true
+        type: string
+      verify_api:
+        description: "Verify protected API endpoints after seeding"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-demo-database
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Seed demo data
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'seed-demo'
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+      API_BASE_URL: https://api-boletas.corporacionceer.com/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check database secret
+        shell: bash
+        run: |
+          if [[ -z "$DATABASE_URL" ]]; then
+            echo "::error::DATABASE_URL secret is not configured in GitHub."
+            exit 1
+          fi
+
+      - name: Run Prisma demo seed
+        run: pnpm db:seed
+
+      - name: Verify API with admin token
+        if: github.event.inputs.verify_api == 'true'
+        shell: bash
+        run: |
+          if [[ -z "$ADMIN_API_TOKEN" ]]; then
+            echo "::warning::ADMIN_API_TOKEN secret is not configured in GitHub. API verification skipped."
+            exit 0
+          fi
+
+          curl --fail --silent --show-error \
+            --header "x-admin-token: $ADMIN_API_TOKEN" \
+            "$API_BASE_URL/events" > /tmp/events.json
+
+          curl --fail --silent --show-error \
+            --header "x-admin-token: $ADMIN_API_TOKEN" \
+            "$API_BASE_URL/events/evt_demo/dashboard" > /tmp/dashboard.json
+
+          node -e "const fs=require('fs'); const events=JSON.parse(fs.readFileSync('/tmp/events.json','utf8')); const dashboard=JSON.parse(fs.readFileSync('/tmp/dashboard.json','utf8')); if (!events.some((event)=>event.id==='evt_demo')) throw new Error('evt_demo not found'); if (dashboard.event.id !== 'evt_demo') throw new Error('dashboard event mismatch'); console.log(JSON.stringify({ eventId: dashboard.event.id, tickets: dashboard.totals.tickets, paid: dashboard.totals.paid, used: dashboard.totals.used }));"
