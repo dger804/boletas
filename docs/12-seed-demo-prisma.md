@@ -37,7 +37,21 @@ No guardar el valor real en GitHub, docs, commits, capturas ni `.env.example`.
 
 ## Ejecucion local contra MySQL
 
-En PowerShell, usar una variable temporal de sesion:
+Opcion recomendada mientras Render no permita servicios pagos:
+
+```powershell
+pnpm.cmd db:seed:local
+```
+
+El script pedira la contrasena de MySQL en modo oculto, armara `DATABASE_URL` en memoria y borrara la variable al finalizar.
+
+Si necesitas cambiar host, puerto, base o usuario:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/seed-demo-local.ps1 -DbHost "srv565.hstgr.io" -DbPort 3306 -DbName "u198462083_boletasEventos" -DbUser "u198462083_boletasApp"
+```
+
+Alternativa manual en PowerShell:
 
 ```powershell
 $env:DATABASE_URL="mysql://usuario:password@host:3306/base_de_datos"
@@ -47,9 +61,9 @@ Remove-Item Env:DATABASE_URL
 
 El valor real debe salir de Render o Hostinger, no del repositorio.
 
-## Ejecucion en produccion
+## Ejecucion con GitHub Actions y Render
 
-Opcion recomendada con GitHub Actions + Render one-off job:
+Esta opcion queda documentada, pero no es la ruta activa si Render responde `new paid services not allowed`.
 
 1. Confirmar backup o que la base sigue en fase demo.
 2. Confirmar que Render tiene `DATABASE_URL` configurado en el servicio `boletas-api`.
@@ -81,6 +95,14 @@ plan-srv-006
 ```
 
 Ese valor corresponde al plan Starter para web services, private services y background workers. Puede generar costo porque Render factura los one-off jobs por el tiempo de ejecucion del tipo de instancia elegido.
+
+Si Render responde:
+
+```txt
+new paid services not allowed
+```
+
+no seguir por esta ruta sin habilitar servicios pagos. Usar la ejecucion local.
 
 Si `ADMIN_API_TOKEN` no existe en Render ni en GitHub, ejecutar con `verify_api` apagado. El seed puede correr sin ese token porque escribe directo a MySQL desde Render usando `DATABASE_URL`; lo unico que se omite es la verificacion HTTP contra endpoints protegidos.
 

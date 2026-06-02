@@ -15,6 +15,7 @@
     "build:web": "pnpm --filter @boletas/web build",
     "build:api": "pnpm --filter @boletas/api build",
     "db:seed": "pnpm --filter @boletas/api db:seed",
+    "db:seed:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/seed-demo-local.ps1",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @boletas/api test",
     "start": "pnpm --filter @boletas/api start:prod"
