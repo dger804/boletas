@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type seed-demo to run the demo seed against DATABASE_URL"
+        description: "Type seed-demo to run the demo seed as a Render one-off job"
         required: true
         type: string
       verify_api:
@@ -29,7 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.confirm == 'seed-demo'
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
       ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
       API_BASE_URL: https://api-boletas.corporacionceer.com/api
 
@@ -41,13 +42,14 @@ jobs:
             echo "### Seed demo preflight"
             echo
             echo "- Confirmation received: yes"
-            echo "- DATABASE_URL secret configured: $([[ -n "$DATABASE_URL" ]] && echo yes || echo no)"
+            echo "- RENDER_API_KEY secret configured: $([[ -n "$RENDER_API_KEY" ]] && echo yes || echo no)"
+            echo "- RENDER_SERVICE_ID secret configured: $([[ -n "$RENDER_SERVICE_ID" ]] && echo yes || echo no)"
             echo "- ADMIN_API_TOKEN secret configured: $([[ -n "$ADMIN_API_TOKEN" ]] && echo yes || echo no)"
             echo "- API verification requested: ${{ github.event.inputs.verify_api }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ -z "$DATABASE_URL" ]]; then
-            echo "::error::DATABASE_URL secret is not configured in GitHub Actions. Create it under Settings > Secrets and variables > Actions."
+          if [[ -z "$RENDER_API_KEY" || -z "$RENDER_SERVICE_ID" ]]; then
+            echo "::error::RENDER_API_KEY and RENDER_SERVICE_ID secrets are required in GitHub Actions."
             exit 1
           fi
 
@@ -55,25 +57,68 @@ jobs:
             echo "::warning::API verification was requested, but ADMIN_API_TOKEN is not configured in GitHub. The seed can still run; API verification will be skipped."
           fi
 
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Create Render one-off seed job
+        id: render-job
+        shell: bash
+        run: |
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --url "https://api.render.com/v1/services/$RENDER_SERVICE_ID/jobs" \
+              --header "Authorization: Bearer $RENDER_API_KEY" \
+              --header "Accept: application/json" \
+              --header "Content-Type: application/json" \
+              --data-raw '{"startCommand":"pnpm db:seed"}'
+          )"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.2.2
+          echo "$response" > /tmp/render-job.json
+          job_id="$(node -e "const fs = require('fs'); const data = JSON.parse(fs.readFileSync('/tmp/render-job.json', 'utf8')); if (!data.id) throw new Error('Render response did not include job id'); console.log(data.id);")"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+          echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
+          {
+            echo
+            echo "### Render job"
+            echo
+            echo "- Job id: $job_id"
+            echo "- Start command: pnpm db:seed"
+            echo "- Logs: Render Dashboard > boletas-api > Jobs"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Wait for Render seed job
+        shell: bash
+        run: |
+          job_id="${{ steps.render-job.outputs.job_id }}"
 
-      - name: Run Prisma demo seed
-        run: pnpm db:seed
+          for attempt in $(seq 1 120); do
+            response="$(
+              curl --fail-with-body --silent --show-error \
+                --request GET \
+                --url "https://api.render.com/v1/services/$RENDER_SERVICE_ID/jobs/$job_id" \
+                --header "Authorization: Bearer $RENDER_API_KEY" \
+                --header "Accept: application/json"
+            )"
+
+            echo "$response" > /tmp/render-job-status.json
+            status="$(node -e "const fs = require('fs'); const data = JSON.parse(fs.readFileSync('/tmp/render-job-status.json', 'utf8')); console.log(data.status);")"
+            echo "Render job $job_id status: $status"
+
+            if [[ "$status" == "succeeded" ]]; then
+              echo "- Final Render job status: succeeded" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            if [[ "$status" == "failed" || "$status" == "canceled" ]]; then
+              echo "::error::Render one-off job $job_id finished with status $status. Check Render Dashboard > boletas-api > Jobs for logs."
+              echo "- Final Render job status: $status" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "::error::Timed out waiting for Render one-off job $job_id."
+          echo "- Final Render job status: timeout" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Verify API with admin token
         if: github.event.inputs.verify_api == 'true'

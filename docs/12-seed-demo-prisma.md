@@ -49,20 +49,32 @@ El valor real debe salir de Render o Hostinger, no del repositorio.
 
 ## Ejecucion en produccion
 
-Opcion recomendada con GitHub Actions:
+Opcion recomendada con GitHub Actions + Render one-off job:
 
 1. Confirmar backup o que la base sigue en fase demo.
-2. Crear el secret `DATABASE_URL` en GitHub con el mismo valor configurado en Render.
-3. Opcional: crear el secret `ADMIN_API_TOKEN` en GitHub para validar la API al terminar.
-4. Abrir `Actions`.
-5. Elegir `Seed Demo Database`.
-6. Ejecutar `Run workflow`.
-7. Escribir `seed-demo` en `confirm`.
-8. Activar `verify_api` si `ADMIN_API_TOKEN` existe como secret de GitHub.
+2. Confirmar que Render tiene `DATABASE_URL` configurado en el servicio `boletas-api`.
+3. Crear un API key en Render.
+4. Crear estos secrets en GitHub Actions:
+
+```txt
+RENDER_API_KEY
+RENDER_SERVICE_ID
+```
+
+El `RENDER_SERVICE_ID` se toma de la URL del servicio en Render. Empieza por `srv-`.
+
+5. Opcional: crear el secret `ADMIN_API_TOKEN` en GitHub para validar la API al terminar.
+6. Abrir `Actions`.
+7. Elegir `Seed Demo Database`.
+8. Ejecutar `Run workflow`.
+9. Escribir `seed-demo` en `confirm`.
+10. Activar `verify_api` si `ADMIN_API_TOKEN` existe como secret de GitHub.
 
 El workflow no corre en cada push. Solo corre manualmente y exige confirmacion escrita.
 
-Si `ADMIN_API_TOKEN` no existe en Render ni en GitHub, ejecutar con `verify_api` apagado. El seed puede correr sin ese token porque escribe directo a MySQL usando `DATABASE_URL`; lo unico que se omite es la verificacion HTTP contra endpoints protegidos.
+GitHub no se conecta directo a MySQL porque Hostinger puede bloquear el puerto `3306` desde los runners de GitHub. El workflow pide a Render crear un one-off job con `pnpm db:seed`. Ese job hereda las variables del servicio `boletas-api`, incluyendo `DATABASE_URL`.
+
+Si `ADMIN_API_TOKEN` no existe en Render ni en GitHub, ejecutar con `verify_api` apagado. El seed puede correr sin ese token porque escribe directo a MySQL desde Render usando `DATABASE_URL`; lo unico que se omite es la verificacion HTTP contra endpoints protegidos.
 
 Opcion local:
 
@@ -87,6 +99,7 @@ Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.co
 - No reemplaza un flujo administrativo real para crear eventos y boletas.
 - No debe usarse para cargar evidencias reales de pago.
 - No habilitar este workflow por `push`; debe seguir siendo manual.
+- El one-off job de Render puede generar costo segun el plan y el tiempo de ejecucion.
 
 ## Siguiente paso
 
