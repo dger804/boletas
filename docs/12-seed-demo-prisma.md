@@ -74,6 +74,14 @@ El workflow no corre en cada push. Solo corre manualmente y exige confirmacion e
 
 GitHub no se conecta directo a MySQL porque Hostinger puede bloquear el puerto `3306` desde los runners de GitHub. El workflow pide a Render crear un one-off job con `pnpm db:seed`. Ese job hereda las variables del servicio `boletas-api`, incluyendo `DATABASE_URL`.
 
+Si Render responde `400` al crear el job y el servicio base esta en plan free, reintentar con `render_plan_id`:
+
+```txt
+plan-srv-006
+```
+
+Ese valor corresponde al plan Starter para web services, private services y background workers. Puede generar costo porque Render factura los one-off jobs por el tiempo de ejecucion del tipo de instancia elegido.
+
 Si `ADMIN_API_TOKEN` no existe en Render ni en GitHub, ejecutar con `verify_api` apagado. El seed puede correr sin ese token porque escribe directo a MySQL desde Render usando `DATABASE_URL`; lo unico que se omite es la verificacion HTTP contra endpoints protegidos.
 
 Opcion local:
