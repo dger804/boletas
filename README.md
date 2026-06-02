@@ -45,7 +45,7 @@ pnpm start
 9. Conectar MySQL remoto de Hostinger con Prisma usando `docs/09-mysql-hostinger-prisma.md`.
 10. Reemplazar gradualmente `EventStoreService` por Prisma con `docs/10-event-store-prisma.md`.
 11. Proteger endpoints persistentes con token temporal usando `docs/11-admin-api-token.md`.
-12. Poblar datos demo controlados con Prisma y GitHub Actions usando `docs/12-seed-demo-prisma.md`.
+12. Poblar datos demo controlados con Prisma usando `docs/12-seed-demo-prisma.md`.
 13. Leer los commits en orden con `git log --oneline --reverse`.
 14. Ejecutar localmente con `pnpm dev`.
 
