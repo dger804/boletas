@@ -16,6 +16,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   group: seed-demo-database
   cancel-in-progress: false
@@ -31,6 +34,27 @@ jobs:
       API_BASE_URL: https://api-boletas.corporacionceer.com/api
 
     steps:
+      - name: Check required inputs and secrets
+        shell: bash
+        run: |
+          {
+            echo "### Seed demo preflight"
+            echo
+            echo "- Confirmation received: yes"
+            echo "- DATABASE_URL secret configured: $([[ -n "$DATABASE_URL" ]] && echo yes || echo no)"
+            echo "- ADMIN_API_TOKEN secret configured: $([[ -n "$ADMIN_API_TOKEN" ]] && echo yes || echo no)"
+            echo "- API verification requested: ${{ github.event.inputs.verify_api }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -z "$DATABASE_URL" ]]; then
+            echo "::error::DATABASE_URL secret is not configured in GitHub Actions. Create it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          if [[ "${{ github.event.inputs.verify_api }}" == "true" && -z "$ADMIN_API_TOKEN" ]]; then
+            echo "::warning::API verification was requested, but ADMIN_API_TOKEN is not configured in GitHub. The seed can still run; API verification will be skipped."
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -47,14 +71,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Check database secret
-        shell: bash
-        run: |
-          if [[ -z "$DATABASE_URL" ]]; then
-            echo "::error::DATABASE_URL secret is not configured in GitHub."
-            exit 1
-          fi
 
       - name: Run Prisma demo seed
         run: pnpm db:seed

@@ -60,6 +60,8 @@ Opcion recomendada con GitHub Actions:
 
 El workflow no corre en cada push. Solo corre manualmente y exige confirmacion escrita.
 
+Si `ADMIN_API_TOKEN` no existe en Render ni en GitHub, ejecutar con `verify_api` apagado. El seed puede correr sin ese token porque escribe directo a MySQL usando `DATABASE_URL`; lo unico que se omite es la verificacion HTTP contra endpoints protegidos.
+
 Opcion local:
 
 ```powershell
