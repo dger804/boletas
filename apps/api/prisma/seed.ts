@@ -248,8 +248,10 @@ async function main() {
     });
   }
 
+  const ticketIdsBySeedId = new Map<string, string>();
+
   for (const ticket of tickets) {
-    await prisma.ticket.upsert({
+    const seededTicket = await prisma.ticket.upsert({
       create: {
         buyerName: ticket.buyerName,
         buyerPhone: ticket.buyerPhone,
@@ -258,6 +260,7 @@ async function main() {
         code: ticket.code,
         distributorId: ticket.distributorId,
         eventId,
+        id: ticket.id,
         notes: ticket.notes,
         paidAt: ticket.paidAt,
         paymentMethod: ticket.paymentMethod,
@@ -282,27 +285,43 @@ async function main() {
         status: ticket.status,
         usedAt: ticket.usedAt
       },
-      where: { id: ticket.id }
+      where: {
+        eventId_code: {
+          code: ticket.code,
+          eventId
+        }
+      }
     });
+
+    ticketIdsBySeedId.set(ticket.id, seededTicket.id);
   }
 
   for (const payment of payments) {
+    const ticketId = ticketIdsBySeedId.get(payment.ticketId);
+
+    if (!ticketId) {
+      throw new Error(`Seed ticket not found for payment ${payment.id}.`);
+    }
+
     await prisma.paymentEvidence.upsert({
       create: {
         ...payment,
-        eventId
+        eventId,
+        ticketId
       },
       update: {
         amount: payment.amount,
         capitalizationAmount: payment.capitalizationAmount,
         evidenceUrl: payment.evidenceUrl,
+        eventId,
         method: payment.method,
         notes: payment.notes,
         receivedAt: payment.receivedAt,
         reference: payment.reference,
         reviewedAt: payment.reviewedAt,
         reviewedBy: payment.reviewedBy,
-        status: payment.status
+        status: payment.status,
+        ticketId
       },
       where: { id: payment.id }
     });

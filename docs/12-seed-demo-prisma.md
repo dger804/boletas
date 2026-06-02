@@ -27,6 +27,8 @@ Auditoria: 1 registro demo
 
 Si se ejecuta varias veces, actualiza solo esos registros demo. No borra datos reales ni toca otros eventos.
 
+Si un intento anterior fallo despues de crear boletas, el seed vuelve a enlazarlas por codigo dentro de `evt_demo` antes de crear pagos. No es necesario borrar registros manualmente por ese fallo.
+
 ## Requisito
 
 Debe existir `DATABASE_URL` en el entorno donde se ejecuta el comando.
