@@ -10,6 +10,7 @@ import type {
   EventDashboard,
   EventRecord,
   PaymentEvidence,
+  PublicEventDashboard,
   TicketRecord,
   TicketStatus
 } from "@boletas/shared";
@@ -186,6 +187,49 @@ export class EventStoreService {
       this.distributors.filter((distributor) => distributor.eventId === eventId),
       recentPayments
     );
+  }
+
+  async getPublicEventDashboard(eventId: string): Promise<PublicEventDashboard> {
+    const dashboard = await this.getEventDashboard(eventId);
+    const tickets = await this.listTickets(eventId);
+    const distributorLabels = new Map(
+      dashboard.distributors.map((distributor, index) => [
+        distributor.id,
+        `Responsable ${index + 1}`
+      ])
+    );
+
+    return {
+      event: {
+        date: dashboard.event.date,
+        expectedAttendees: dashboard.event.expectedAttendees,
+        name: dashboard.event.name,
+        venue: dashboard.event.venue
+      },
+      totals: dashboard.totals,
+      distributors: dashboard.distributors.map((distributor, index) => ({
+        assignedTickets: distributor.assignedTickets,
+        grossSales: distributor.grossSales,
+        label: `Responsable ${index + 1}`,
+        paidTickets: distributor.paidTickets,
+        usedTickets: distributor.usedTickets
+      })),
+      ticketSamples: tickets.slice(0, 5).map((ticket, index) => ({
+        amount: ticket.price,
+        detail: this.toPublicTicketDetail(ticket.status),
+        distributorLabel: ticket.distributorId
+          ? distributorLabels.get(ticket.distributorId) ?? "Responsable asignado"
+          : "Sin asignar",
+        reference: `Boleta ${index + 1}`,
+        status: ticket.status
+      })),
+      recentPayments: dashboard.recentPayments.slice(0, 5).map((payment, index) => ({
+        amount: payment.amount,
+        label: `Evidencia ${index + 1}`,
+        method: payment.method,
+        status: payment.status
+      }))
+    };
   }
 
   async addDistributor(eventId: string, dto: CreateDistributorDto) {
@@ -593,6 +637,20 @@ export class EventStoreService {
       throw new NotFoundException("event not found");
     }
     return event;
+  }
+
+  private toPublicTicketDetail(status: TicketStatus) {
+    const details: Record<TicketStatus, string> = {
+      assigned: "Asignada a responsable",
+      available: "Disponible para asignar",
+      paid: "Pago validado",
+      reserved: "Reservada",
+      sold: "Pago pendiente de validar",
+      used: "Ingreso registrado",
+      void: "Bloqueada"
+    };
+
+    return details[status];
   }
 
   private findTicket(ticketId: string) {

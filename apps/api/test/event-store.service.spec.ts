@@ -96,6 +96,25 @@ describe("EventStoreService", () => {
     });
   });
 
+  it("builds a public dashboard without buyer or payment evidence details", async () => {
+    const store = new EventStoreService();
+    const dashboard = await store.getPublicEventDashboard("evt_demo");
+    const serialized = JSON.stringify(dashboard);
+
+    expect(dashboard.event).toMatchObject({
+      name: "Lanzamiento Demo",
+      venue: "Auditorio Principal"
+    });
+    expect(dashboard.ticketSamples[0]).toMatchObject({
+      detail: "Pago validado",
+      reference: "Boleta 1"
+    });
+    expect(serialized).not.toContain("Comprador Demo");
+    expect(serialized).not.toContain("+57");
+    expect(serialized).not.toContain("TRX-DEMO");
+    expect(serialized).not.toContain("evidencia-demo");
+  });
+
   it("does not allow check-in before payment approval", async () => {
     const store = new EventStoreService();
     const tickets = await store.createTicketBatch("evt_demo", {

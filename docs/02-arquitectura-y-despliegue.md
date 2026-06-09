@@ -104,9 +104,14 @@ Los endpoints persistentes de eventos, boletas y pagos quedan protegidos con `AD
 
 Los datos demo persistentes se cargan con `pnpm db:seed` y requieren `DATABASE_URL` en el entorno de ejecucion. Ver `docs/12-seed-demo-prisma.md`.
 
-La siguiente iteracion deberia agregar persistencia con un motor externo. La opcion sugerida es Prisma porque permite:
+El frontend estatico no debe usar `ADMIN_API_TOKEN`. Para mostrar el tablero sin exponer datos operativos, la API publica un resumen sanitizado:
 
-- Modelar eventos, boletas, distribuidores y pagos.
-- Ejecutar migraciones versionadas.
-- Usar MySQL o PostgreSQL segun el proveedor elegido.
-- Usar una base local para desarrollo.
+```txt
+GET /api/public/events/:eventId/dashboard
+```
+
+Ese endpoint devuelve metricas agregadas, muestras anonimizadas y pagos recientes sin compradores, telefonos, referencias de transferencia ni URLs de evidencia. Las acciones que crean o modifican datos siguen en endpoints protegidos.
+
+Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
+
+La siguiente decision tecnica es implementar autenticacion y roles para reemplazar el token temporal antes de manejar datos reales completos desde la interfaz.

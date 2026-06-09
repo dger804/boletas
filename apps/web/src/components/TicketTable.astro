@@ -1,9 +1,9 @@
 ---
 interface TicketRow {
-  code: string;
-  owner: string;
+  reference: string;
+  detail: string;
   distributor: string;
-  status: "Disponible" | "Asignada" | "Vendida" | "Pagada" | "Usada";
+  status: "Disponible" | "Asignada" | "Reservada" | "Vendida" | "Pagada" | "Usada" | "Bloqueada";
   amount: string;
 }
 
@@ -15,8 +15,10 @@ const { rows } = Astro.props;
 
 const statusClasses = {
   Asignada: "bg-zinc-100 text-zinc-700",
+  Bloqueada: "bg-rose-50 text-rose-700",
   Disponible: "bg-sky-50 text-sky-700",
   Pagada: "bg-emerald-50 text-emerald-700",
+  Reservada: "bg-violet-50 text-violet-700",
   Usada: "bg-indigo-50 text-indigo-700",
   Vendida: "bg-amber-50 text-amber-700"
 };
@@ -42,8 +44,8 @@ const statusClasses = {
     <table class="min-w-full divide-y divide-zinc-100 text-left text-sm">
       <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
-          <th class="px-4 py-3 font-medium">Codigo</th>
-          <th class="px-4 py-3 font-medium">Comprador</th>
+          <th class="px-4 py-3 font-medium">Referencia</th>
+          <th class="px-4 py-3 font-medium">Detalle</th>
           <th class="px-4 py-3 font-medium">Distribuidor</th>
           <th class="px-4 py-3 font-medium">Estado</th>
           <th class="px-4 py-3 text-right font-medium">Valor</th>
@@ -54,9 +56,9 @@ const statusClasses = {
           rows.map((row) => (
             <tr class="hover:bg-zinc-50">
               <td class="whitespace-nowrap px-4 py-3 font-medium text-zinc-950">
-                {row.code}
+                {row.reference}
               </td>
-              <td class="whitespace-nowrap px-4 py-3 text-zinc-600">{row.owner}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-zinc-600">{row.detail}</td>
               <td class="whitespace-nowrap px-4 py-3 text-zinc-600">
                 {row.distributor}
               </td>

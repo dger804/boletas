@@ -51,6 +51,24 @@ GET    /api/payments
 PATCH  /api/payments/:paymentId/verify
 ```
 
+Tambien existe un endpoint publico de solo lectura para el dashboard del frontend estatico:
+
+```txt
+GET /api/public/events/:eventId/dashboard
+```
+
+Este endpoint no requiere `ADMIN_API_TOKEN` porque no devuelve datos sensibles. Su salida esta sanitizada:
+
+- no incluye nombres de compradores;
+- no incluye telefonos;
+- no incluye codigos reales de boletas;
+- no incluye referencias bancarias;
+- no incluye `evidenceUrl`.
+
+Las operaciones administrativas y los listados completos siguen protegidos.
+
+El frontend estatico renderiza un fallback y luego refresca este endpoint desde el navegador. Esto evita publicar `ADMIN_API_TOKEN` y evita que el dashboard quede congelado con datos del momento del build.
+
 ## Fallback local
 
 El fallback en memoria sigue existiendo, pero solo se usa si Prisma no esta configurado.
@@ -72,6 +90,7 @@ Despues del deploy se puede validar:
 ```txt
 https://api-boletas.corporacionceer.com/api/health/db
 https://api-boletas.corporacionceer.com/api/events
+https://api-boletas.corporacionceer.com/api/public/events/evt_demo/dashboard
 ```
 
 Si `/api/events` responde `[]`, no es error: significa que la base real esta vacia y aun no se han creado eventos persistentes.
@@ -83,4 +102,4 @@ Si `/api/events` responde `[]`, no es error: significa que la base real esta vac
 3. Agregar tests de integracion con una base de datos temporal.
 4. Agregar auditoria real en cambios de estado.
 5. Definir autenticacion y roles antes de usar datos reales de compradores.
-6. Mover el frontend de dashboard estatico a consumo de API persistente sin exponer `ADMIN_API_TOKEN`.
+6. Ampliar el frontend para operaciones reales cuando exista autenticacion.

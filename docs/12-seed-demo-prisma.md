@@ -69,6 +69,14 @@ Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.co
 Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.com/api/events/evt_demo/dashboard"
 ```
 
+El frontend debe validar el tablero usando el endpoint publico sanitizado, sin token:
+
+```powershell
+Invoke-RestMethod -Uri "https://api-boletas.corporacionceer.com/api/public/events/evt_demo/dashboard"
+```
+
+En Hostinger, la pagina debe consumir esta ruta desde JavaScript del navegador. No debe depender de un `fetch` de Astro en tiempo de build para datos que cambian durante el evento.
+
 ## Riesgos y limites
 
 - Es data demo, no data real.
@@ -80,7 +88,7 @@ Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.co
 
 Despues de validar el seed:
 
-1. No conectar el frontend estatico directamente a endpoints protegidos usando `ADMIN_API_TOKEN`.
+1. Mantener el frontend estatico conectado solo al endpoint publico sanitizado.
 2. Implementar login y roles para reemplazar el token temporal.
-3. Crear una vista frontend que consuma datos reales solo cuando exista un mecanismo seguro: autenticacion, endpoint publico sanitizado o generacion estatica controlada.
+3. Crear vistas operativas que consuman datos completos solo cuando exista autenticacion.
 4. Mover acciones operativas del seed hacia endpoints protegidos por autorizacion real.

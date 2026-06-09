@@ -13,6 +13,7 @@ export type {
   EvidenceStatus,
   PaymentEvidence,
   PaymentMethod,
+  PublicEventDashboard,
   TicketRecord,
   TicketStatus
 } from "./domain";

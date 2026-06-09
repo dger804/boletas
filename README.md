@@ -8,7 +8,7 @@ Monorepo para una app web de manejo y gestion de boletas de eventos: inventario,
 - `Astro` sobre `Vite` para el frontend.
 - `Tailwind CSS` para UI.
 - `NestJS` para API.
-- Un solo subdominio en produccion: el frontend vive en `/` y la API en `/api`.
+- Frontend estatico en Hostinger y API NestJS en Render mientras el plan de Hostinger no ejecute Node.js.
 
 ## Estructura
 
@@ -46,8 +46,9 @@ pnpm start
 10. Reemplazar gradualmente `EventStoreService` por Prisma con `docs/10-event-store-prisma.md`.
 11. Proteger endpoints persistentes con token temporal usando `docs/11-admin-api-token.md`.
 12. Poblar datos demo controlados con Prisma usando `docs/12-seed-demo-prisma.md`.
-13. Leer los commits en orden con `git log --oneline --reverse`.
-14. Ejecutar localmente con `pnpm dev`.
+13. Conectar el dashboard frontend al endpoint publico sanitizado.
+14. Leer los commits en orden con `git log --oneline --reverse`.
+15. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 

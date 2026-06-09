@@ -102,3 +102,28 @@ export interface EventDashboard {
   >;
   recentPayments: PaymentEvidence[];
 }
+
+export interface PublicEventDashboard {
+  event: Pick<EventRecord, "name" | "date" | "venue" | "expectedAttendees">;
+  totals: EventDashboard["totals"];
+  distributors: Array<{
+    label: string;
+    assignedTickets: number;
+    paidTickets: number;
+    usedTickets: number;
+    grossSales: number;
+  }>;
+  ticketSamples: Array<{
+    reference: string;
+    status: TicketStatus;
+    amount: number;
+    detail: string;
+    distributorLabel: string;
+  }>;
+  recentPayments: Array<{
+    label: string;
+    method: PaymentMethod;
+    amount: number;
+    status: EvidenceStatus;
+  }>;
+}
