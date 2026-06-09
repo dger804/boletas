@@ -2,6 +2,10 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "baseUrl": ".",
+    "paths": {
+      "@boletas/shared": ["../../packages/shared/src/index.ts"],
+      "@boletas/shared/*": ["../../packages/shared/src/*"]
+    },
     "types": ["astro/client"]
   },
   "include": [".astro/types.d.ts", "**/*"],
