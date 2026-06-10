@@ -91,6 +91,17 @@ Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.co
 
 Durante la transicion, los endpoints administrativos siguen aceptando `ADMIN_API_TOKEN`.
 
+## Limpieza de usuarios de prueba
+
+Si se crea un admin con correo temporal para probar el flujo:
+
+1. Crear o actualizar el admin definitivo con el correo correcto.
+2. Validar login con el admin definitivo.
+3. En phpMyAdmin, deshabilitar el usuario temporal cambiando `status` a `disabled`.
+4. Borrar el usuario temporal solo cuando ya no existan registros o auditorias que se quieran conservar asociados a ese usuario.
+
+La columna `last_login_at` permite confirmar que el login realmente paso por la API.
+
 ## Pendientes
 
 1. Crear pantalla de login en el frontend.

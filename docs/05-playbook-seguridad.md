@@ -116,6 +116,7 @@ Reglas:
 - Evitar deletes fisicos para pagos, boletas y check-in; preferir estados y auditoria.
 - Usar transacciones para aprobar pago, cambiar estado de boleta y registrar auditoria.
 - Restringir credenciales de produccion al minimo necesario.
+- Deshabilitar usuarios de prueba antes de borrarlos, para no perder contexto de auditoria mientras el sistema aun esta madurando.
 
 ### CI/CD
 
