@@ -3,7 +3,8 @@ export {
   EVIDENCE_STATUSES,
   PAYMENT_METHODS,
   TICKET_STATUSES,
-  USER_ROLES
+  USER_ROLES,
+  USER_STATUSES
 } from "./domain";
 
 export type {
@@ -17,7 +18,9 @@ export type {
   PaymentMethod,
   PublicEventDashboard,
   LoginResponse,
+  ManagedUser,
   TicketRecord,
   TicketStatus,
-  UserRole
+  UserRole,
+  UserStatus
 } from "./domain";

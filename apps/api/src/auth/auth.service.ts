@@ -5,7 +5,11 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { AppUser } from "@prisma/client";
-import type { AuthenticatedUser, LoginResponse } from "@boletas/shared";
+import {
+  USER_ROLES,
+  type AuthenticatedUser,
+  type LoginResponse
+} from "@boletas/shared";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { PrismaService } from "../database/prisma.service";
 import { verifyPassword } from "./passwords";
@@ -85,6 +89,24 @@ export class AuthService {
     };
   }
 
+  async verifyActiveToken(token: string): Promise<AuthenticatedUser> {
+    const tokenUser = this.verifyToken(token);
+
+    if (!this.prisma.isConfigured()) {
+      throw new ServiceUnavailableException("database is not configured");
+    }
+
+    const user = await this.prisma.appUser.findUnique({
+      where: { id: tokenUser.id }
+    });
+
+    if (!user || user.status !== "active") {
+      throw new UnauthorizedException("invalid auth token");
+    }
+
+    return this.toSessionUser(user);
+  }
+
   private createLoginResponse(user: AppUser): LoginResponse {
     const issuedAt = Math.floor(Date.now() / 1000);
     const expiresAt = issuedAt + this.getTokenTtlSeconds();
@@ -132,6 +154,7 @@ export class AuthService {
         !parsed.email ||
         !parsed.name ||
         !parsed.role ||
+        !USER_ROLES.includes(parsed.role) ||
         typeof parsed.exp !== "number" ||
         typeof parsed.iat !== "number"
       ) {

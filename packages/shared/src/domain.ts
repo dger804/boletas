@@ -22,15 +22,26 @@ export const EVIDENCE_STATUSES = ["pending", "approved", "rejected"] as const;
 
 export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 
-export const USER_ROLES = ["admin", "seller", "gate"] as const;
+export const USER_ROLES = ["regular", "supervisor", "admin"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
+
+export const USER_STATUSES = ["active", "disabled"] as const;
+
+export type UserStatus = (typeof USER_STATUSES)[number];
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+}
+
+export interface ManagedUser extends AuthenticatedUser {
+  status: UserStatus;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LoginResponse {

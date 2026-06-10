@@ -9,12 +9,12 @@ Permitir que la API acepte sesiones de usuario firmadas para operaciones adminis
 ## Roles iniciales
 
 ```txt
-admin   -> administra eventos, boletas, distribuidores y pagos
-seller  -> futuro rol para vendedores o distribuidores
-gate    -> futuro rol para control de entrada
+regular    -> usuario operativo basico, sin administracion de cuentas
+supervisor -> usuario intermedio para supervision y validaciones futuras
+admin      -> administra eventos, usuarios, boletas, distribuidores y pagos
 ```
 
-En este corte, solo `admin` puede reemplazar al `ADMIN_API_TOKEN` en endpoints protegidos.
+En este corte, solo `admin` puede reemplazar al `ADMIN_API_TOKEN` en endpoints protegidos y administrar usuarios.
 
 ## Variables en Render
 
@@ -29,12 +29,28 @@ AUTH_TOKEN_TTL_SECONDS=28800
 
 No guardar valores reales en GitHub, docs, capturas ni `.env.example`.
 
-## Migracion
+## Migraciones
 
 La migracion `20260609223500_add_app_users` crea la tabla:
 
 ```txt
 app_users
+```
+
+La migracion `20260610173000_update_user_roles` cambia los roles a:
+
+```txt
+regular
+supervisor
+admin
+```
+
+Si existian roles anteriores, los traduce asi:
+
+```txt
+seller -> regular
+gate   -> supervisor
+admin  -> admin
 ```
 
 Render la aplica durante el build con:
@@ -99,6 +115,57 @@ Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.co
 
 Durante la transicion, los endpoints administrativos siguen aceptando `ADMIN_API_TOKEN`.
 
+## Administrar usuarios
+
+Los usuarios `admin` pueden listar, crear y actualizar cuentas desde la API:
+
+```txt
+GET   /api/auth/users
+POST  /api/auth/users
+PATCH /api/auth/users/:id
+Authorization: Bearer <token_admin>
+```
+
+Crear usuario:
+
+```powershell
+$headers = @{ Authorization = "Bearer TU_TOKEN_ADMIN" }
+$body = @{
+  email = "supervisor@tu-dominio.com"
+  name = "Supervisor Evento"
+  password = "PasswordTemporal2026"
+  role = "supervisor"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body `
+  -Uri "https://api-boletas.corporacionceer.com/api/auth/users"
+```
+
+Cambiar rol o estado:
+
+```powershell
+$headers = @{ Authorization = "Bearer TU_TOKEN_ADMIN" }
+$body = @{
+  role = "regular"
+  status = "active"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Patch `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body `
+  -Uri "https://api-boletas.corporacionceer.com/api/auth/users/ID_DEL_USUARIO"
+```
+
+Las respuestas nunca incluyen `password_hash`. La API impide degradar o deshabilitar al ultimo `admin` activo para evitar perder acceso administrativo.
+
+Cuando un usuario cambia de rol o estado, los guards consultan la base de datos al validar la sesion. Eso permite que `/api/auth/me` devuelva el rol vigente y que un usuario deshabilitado deje de poder usar su token aunque no haya expirado todavia.
+
 ## Estado de usuario y cierre de sesion
 
 El dashboard usa `sessionStorage` para conservar la sesion recibida desde el login:
@@ -136,6 +203,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 ## Pendientes
 
 1. Cambiar pantallas operativas para usar endpoints protegidos con sesion de usuario.
-2. Agregar autorizacion por rol a cada flujo.
-3. Mejorar manejo visible de expiracion de sesion.
-4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+2. Crear pantalla web para administrar usuarios sin usar llamadas manuales.
+3. Agregar autorizacion por rol a cada flujo operativo.
+4. Mejorar manejo visible de expiracion de sesion.
+5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.

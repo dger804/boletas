@@ -18,13 +18,13 @@ export class AdminTokenGuard implements CanActivate {
     private readonly auth?: AuthService
   ) {}
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext) {
     const expectedToken = this.config.get<string>("ADMIN_API_TOKEN")?.trim();
     const request = context.switchToHttp().getRequest<{
       headers: Record<string, HeaderValue>;
     }>();
 
-    if (this.hasAdminSession(request.headers)) {
+    if (await this.hasAdminSession(request.headers)) {
       return true;
     }
 
@@ -63,7 +63,7 @@ export class AdminTokenGuard implements CanActivate {
     return Array.isArray(value) ? value[0] : value;
   }
 
-  private hasAdminSession(headers: Record<string, HeaderValue>) {
+  private async hasAdminSession(headers: Record<string, HeaderValue>) {
     const authorization = this.firstHeader(headers.authorization);
 
     if (!authorization?.startsWith("Bearer ") || !this.auth) {
@@ -72,7 +72,8 @@ export class AdminTokenGuard implements CanActivate {
 
     try {
       return (
-        this.auth.verifyToken(authorization.slice("Bearer ".length)).role ===
+        (await this.auth.verifyActiveToken(authorization.slice("Bearer ".length)))
+          .role ===
         "admin"
       );
     } catch {

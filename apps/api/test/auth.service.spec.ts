@@ -64,6 +64,36 @@ describe("AuthService", () => {
     });
   });
 
+  it("returns fresh user data when validating an active token", async () => {
+    const user = createUser("PruebaSegura2026");
+    const updatedUser = { ...user, role: "supervisor" as const };
+    const prisma = {
+      appUser: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(user)
+          .mockResolvedValueOnce(updatedUser),
+        update: jest.fn().mockResolvedValue(user)
+      },
+      isConfigured: () => true
+    } as unknown as PrismaService;
+    const service = new AuthService(
+      createConfig({
+        AUTH_TOKEN_SECRET: "test-secret",
+        NODE_ENV: "production"
+      }),
+      prisma
+    );
+
+    const response = await service.login("admin@example.com", "PruebaSegura2026");
+    const sessionUser = await service.verifyActiveToken(response.token);
+
+    expect(sessionUser).toMatchObject({
+      id: "usr_admin",
+      role: "supervisor"
+    });
+  });
+
   it("rejects invalid credentials", async () => {
     const user = createUser("PruebaSegura2026");
     const service = new AuthService(

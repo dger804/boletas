@@ -23,9 +23,8 @@ Este playbook define como vamos a tomar decisiones de seguridad para la app de g
 ## Roles iniciales
 
 - `admin`: administra eventos, usuarios, boletas, pagos y reportes.
-- `seller`: vende o registra pagos de boletas asignadas.
-- `gate`: valida boletas pagadas y marca ingreso.
-- `viewer`: consulta reportes sin modificar datos.
+- `supervisor`: supervisa operacion, valida flujos asignados y consulta reportes.
+- `regular`: usuario operativo basico para flujos asignados.
 
 Regla base: ningun endpoint sensible debe depender solo de que el usuario conozca un `eventId`, `ticketId`, `paymentId` o codigo de boleta.
 
@@ -156,9 +155,9 @@ Antes de aprobar un PR:
 Estas pruebas deben automatizarse cuando exista auth real:
 
 1. Usuario anonimo no lista pagos, boletas ni compradores.
-2. `seller` no puede aprobar pagos.
-3. `seller` no puede ver boletas de otro vendedor.
-4. `gate` no puede crear eventos ni cambiar precios.
+2. `regular` no puede aprobar pagos.
+3. `regular` no puede ver boletas fuera de su alcance.
+4. `supervisor` no puede administrar usuarios ni cambiar secretos.
 5. Boleta `sold` sin pago no puede hacer check-in.
 6. Boleta `paid` puede hacer check-in una sola vez.
 7. Boleta `void` no puede venderse, pagarse ni usarse.

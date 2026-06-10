@@ -20,23 +20,23 @@ const createContext = (headers: Record<string, string | string[] | undefined>) =
   }) as ExecutionContext;
 
 describe("AdminTokenGuard", () => {
-  it("allows local development without a configured token", () => {
+  it("allows local development without a configured token", async () => {
     const guard = new AdminTokenGuard(
       createConfig({ NODE_ENV: "development" })
     );
 
-    expect(guard.canActivate(createContext({}))).toBe(true);
+    await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
   });
 
-  it("fails closed in production when token is missing", () => {
+  it("fails closed in production when token is missing", async () => {
     const guard = new AdminTokenGuard(createConfig({ NODE_ENV: "production" }));
 
-    expect(() => guard.canActivate(createContext({}))).toThrow(
+    await expect(guard.canActivate(createContext({}))).rejects.toThrow(
       ServiceUnavailableException
     );
   });
 
-  it("rejects invalid tokens", () => {
+  it("rejects invalid tokens", async () => {
     const guard = new AdminTokenGuard(
       createConfig({
         ADMIN_API_TOKEN: "correct-token",
@@ -44,12 +44,12 @@ describe("AdminTokenGuard", () => {
       })
     );
 
-    expect(() =>
+    await expect(
       guard.canActivate(createContext({ "x-admin-token": "wrong-token" }))
-    ).toThrow(UnauthorizedException);
+    ).rejects.toThrow(UnauthorizedException);
   });
 
-  it("accepts the x-admin-token header", () => {
+  it("accepts the x-admin-token header", async () => {
     const guard = new AdminTokenGuard(
       createConfig({
         ADMIN_API_TOKEN: "correct-token",
@@ -57,12 +57,12 @@ describe("AdminTokenGuard", () => {
       })
     );
 
-    expect(
+    await expect(
       guard.canActivate(createContext({ "x-admin-token": "correct-token" }))
-    ).toBe(true);
+    ).resolves.toBe(true);
   });
 
-  it("accepts bearer tokens", () => {
+  it("accepts bearer tokens", async () => {
     const guard = new AdminTokenGuard(
       createConfig({
         ADMIN_API_TOKEN: "correct-token",
@@ -70,16 +70,16 @@ describe("AdminTokenGuard", () => {
       })
     );
 
-    expect(
+    await expect(
       guard.canActivate(
         createContext({ authorization: "Bearer correct-token" })
       )
-    ).toBe(true);
+    ).resolves.toBe(true);
   });
 
-  it("accepts admin session bearer tokens", () => {
+  it("accepts admin session bearer tokens", async () => {
     const auth = {
-      verifyToken: jest.fn().mockReturnValue({
+      verifyActiveToken: jest.fn().mockResolvedValue({
         email: "admin@example.com",
         id: "usr_admin",
         name: "Admin",
@@ -91,8 +91,30 @@ describe("AdminTokenGuard", () => {
       auth
     );
 
-    expect(
+    await expect(
       guard.canActivate(createContext({ authorization: "Bearer session-token" }))
-    ).toBe(true);
+    ).resolves.toBe(true);
+  });
+
+  it("rejects non-admin session bearer tokens when no admin token matches", async () => {
+    const auth = {
+      verifyActiveToken: jest.fn().mockResolvedValue({
+        email: "supervisor@example.com",
+        id: "usr_supervisor",
+        name: "Supervisor",
+        role: "supervisor"
+      })
+    } as unknown as AuthService;
+    const guard = new AdminTokenGuard(
+      createConfig({
+        ADMIN_API_TOKEN: "correct-token",
+        NODE_ENV: "production"
+      }),
+      auth
+    );
+
+    await expect(
+      guard.canActivate(createContext({ authorization: "Bearer session-token" }))
+    ).rejects.toThrow(UnauthorizedException);
   });
 });

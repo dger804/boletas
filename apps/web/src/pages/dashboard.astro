@@ -234,14 +234,14 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       id: string;
       email: string;
       name: string;
-      role: "admin" | "seller" | "gate";
+      role: "regular" | "supervisor" | "admin";
     }
 
     interface AuthMeResponse {
       user?: StoredUser;
     }
 
-    const allowedRoles = new Set(["admin", "seller", "gate"]);
+    const allowedRoles = new Set(["regular", "supervisor", "admin"]);
 
     const clearSession = () => {
       sessionStorage.removeItem("boletas.auth.token");

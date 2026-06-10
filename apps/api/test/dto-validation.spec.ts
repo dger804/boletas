@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { BadRequestException, ValidationPipe } from "@nestjs/common";
+import { CreateUserDto } from "../src/auth/dto";
 import {
   CreateEventDto,
   CreateTicketBatchDto,
@@ -66,6 +67,20 @@ describe("DTO validation", () => {
           status: "paid"
         },
         { metatype: RegisterSaleDto, type: "body" }
+      )
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("rejects unsupported user roles", async () => {
+    await expect(
+      pipe.transform(
+        {
+          email: "usuario@example.com",
+          name: "Usuario",
+          password: "PruebaSegura2026",
+          role: "owner"
+        },
+        { metatype: CreateUserDto, type: "body" }
       )
     ).rejects.toBeInstanceOf(BadRequestException);
   });

@@ -18,7 +18,7 @@ export interface RequestWithUser {
 export class AuthTokenGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const token = this.extractBearerToken(request.headers);
 
@@ -26,7 +26,7 @@ export class AuthTokenGuard implements CanActivate {
       throw new UnauthorizedException("missing auth token");
     }
 
-    request.user = this.auth.verifyToken(token);
+    request.user = await this.auth.verifyActiveToken(token);
 
     return true;
   }
