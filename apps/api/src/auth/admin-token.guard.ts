@@ -29,7 +29,7 @@ export class AdminTokenGuard implements CanActivate {
     }
 
     if (!expectedToken) {
-      if (this.config.get<string>("NODE_ENV") !== "production") {
+      if (this.allowsUnsafeLocalBypass()) {
         return true;
       }
 
@@ -57,6 +57,15 @@ export class AdminTokenGuard implements CanActivate {
     }
 
     return undefined;
+  }
+
+  private allowsUnsafeLocalBypass() {
+    return (
+      this.config.get<string>("NODE_ENV") !== "production" &&
+      !this.config.get<string>("DATABASE_URL") &&
+      !this.config.get<string>("AUTH_TOKEN_SECRET") &&
+      !this.config.get<string>("CORS_ORIGIN")
+    );
   }
 
   private firstHeader(value: HeaderValue) {

@@ -28,6 +28,19 @@ describe("AdminTokenGuard", () => {
     await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
   });
 
+  it("does not allow local bypass when production-like config exists", async () => {
+    const guard = new AdminTokenGuard(
+      createConfig({
+        AUTH_TOKEN_SECRET: "auth-secret",
+        DATABASE_URL: "mysql://user:pass@example.com:3306/db"
+      })
+    );
+
+    await expect(guard.canActivate(createContext({}))).rejects.toThrow(
+      ServiceUnavailableException
+    );
+  });
+
   it("fails closed in production when token is missing", async () => {
     const guard = new AdminTokenGuard(createConfig({ NODE_ENV: "production" }));
 
