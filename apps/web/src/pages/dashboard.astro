@@ -316,6 +316,12 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       });
     };
 
+    const renderAdminOnlyNavigation = (user: StoredUser) => {
+      document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
+        element.classList.toggle("hidden", user.role !== "admin");
+      });
+    };
+
     const bindLogout = () => {
       document.querySelectorAll("[data-logout-button]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -375,6 +381,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
             activeUser = apiUser;
             sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
             renderUser(activeUser);
+            renderAdminOnlyNavigation(activeUser);
           })
           .catch(() => {
             redirectToLogin();
@@ -402,7 +409,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
           <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/dashboard">
             Tablero
           </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/users">
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-admin-only href="/users">
             Usuarios
           </a>
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href={publicDashboardUrl}>

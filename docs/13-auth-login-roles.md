@@ -134,6 +134,8 @@ cambiar estado
 
 El propio frontend valida `/api/auth/me`; si el usuario autenticado no es `admin`, redirige a `/dashboard`.
 
+El enlace `Usuarios` en el tablero tambien queda oculto por defecto y solo se muestra despues de confirmar con la API que la sesion pertenece a un `admin`.
+
 La API que respalda esta pantalla es:
 
 ```txt
