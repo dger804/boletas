@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AdminTokenGuard } from "../auth/admin-token.guard";
+import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../database/database.module";
 import { EventStoreService } from "./event-store.service";
 import { EventsController } from "./events.controller";
@@ -8,7 +9,7 @@ import { PublicEventsController } from "./public-events.controller";
 import { TicketsController } from "./tickets.controller";
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [AuthModule, DatabaseModule],
   controllers: [
     EventsController,
     TicketsController,

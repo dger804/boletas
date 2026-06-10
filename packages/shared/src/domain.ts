@@ -22,6 +22,24 @@ export const EVIDENCE_STATUSES = ["pending", "approved", "rejected"] as const;
 
 export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
 
+export const USER_ROLES = ["admin", "seller", "gate"] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+}
+
+export interface LoginResponse {
+  token: string;
+  tokenType: "Bearer";
+  expiresAt: string;
+  user: AuthenticatedUser;
+}
+
 export interface EventRecord {
   id: string;
   name: string;

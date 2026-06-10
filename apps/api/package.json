@@ -8,6 +8,7 @@
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:seed": "pnpm prisma:generate && ts-node --project tsconfig.json prisma/seed.ts",
+    "auth:create-admin": "pnpm prisma:generate && ts-node --project tsconfig.json prisma/create-admin.ts",
     "start:prod": "node dist/apps/api/src/main.js",
     "typecheck": "pnpm prisma:generate && tsc --noEmit -p tsconfig.json",
     "test": "pnpm prisma:generate && jest --passWithNoTests"

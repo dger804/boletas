@@ -34,6 +34,33 @@ enum EvidenceStatus {
   rejected
 }
 
+enum UserRole {
+  admin
+  seller
+  gate
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+model AppUser {
+  id           String     @id @default(uuid()) @db.VarChar(36)
+  email        String     @unique @db.VarChar(160)
+  name         String     @db.VarChar(120)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         UserRole   @default(seller)
+  status       UserStatus @default(active)
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@index([status])
+  @@map("app_users")
+}
+
 model Event {
   id                String            @id @default(uuid()) @db.VarChar(36)
   name              String            @db.VarChar(120)

@@ -102,6 +102,8 @@ La primera migracion Prisma crea `events`, `distributors`, `tickets`, `payment_e
 
 Los endpoints persistentes de eventos, boletas y pagos quedan protegidos con `ADMIN_API_TOKEN` hasta implementar login y roles. Ver `docs/11-admin-api-token.md`.
 
+La primera base de login y roles ya existe. Usa usuarios en MySQL, tokens firmados con `AUTH_TOKEN_SECRET` y roles `admin`, `seller`, `gate`. Durante la transicion, los endpoints administrativos aceptan usuarios `admin` o el token temporal. Ver `docs/13-auth-login-roles.md`.
+
 Los datos demo persistentes se cargan con `pnpm db:seed` y requieren `DATABASE_URL` en el entorno de ejecucion. Ver `docs/12-seed-demo-prisma.md`.
 
 El frontend estatico no debe usar `ADMIN_API_TOKEN`. Para mostrar el tablero sin exponer datos operativos, la API publica un resumen sanitizado:
@@ -114,4 +116,4 @@ Ese endpoint devuelve metricas agregadas, muestras anonimizadas y pagos reciente
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
-La siguiente decision tecnica es implementar autenticacion y roles para reemplazar el token temporal antes de manejar datos reales completos desde la interfaz.
+La siguiente decision tecnica es construir la pantalla de login y empezar a mover las pantallas operativas al token de sesion.

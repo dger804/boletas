@@ -7,15 +7,26 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { timingSafeEqual } from "node:crypto";
+import { AuthService } from "./auth.service";
 
 type HeaderValue = string | string[] | undefined;
 
 @Injectable()
 export class AdminTokenGuard implements CanActivate {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly auth?: AuthService
+  ) {}
 
   canActivate(context: ExecutionContext) {
     const expectedToken = this.config.get<string>("ADMIN_API_TOKEN")?.trim();
+    const request = context.switchToHttp().getRequest<{
+      headers: Record<string, HeaderValue>;
+    }>();
+
+    if (this.hasAdminSession(request.headers)) {
+      return true;
+    }
 
     if (!expectedToken) {
       if (this.config.get<string>("NODE_ENV") !== "production") {
@@ -25,9 +36,6 @@ export class AdminTokenGuard implements CanActivate {
       throw new ServiceUnavailableException("admin token is not configured");
     }
 
-    const request = context.switchToHttp().getRequest<{
-      headers: Record<string, HeaderValue>;
-    }>();
     const providedToken = this.extractToken(request.headers);
 
     if (!providedToken || !this.tokensMatch(providedToken, expectedToken)) {
@@ -53,6 +61,23 @@ export class AdminTokenGuard implements CanActivate {
 
   private firstHeader(value: HeaderValue) {
     return Array.isArray(value) ? value[0] : value;
+  }
+
+  private hasAdminSession(headers: Record<string, HeaderValue>) {
+    const authorization = this.firstHeader(headers.authorization);
+
+    if (!authorization?.startsWith("Bearer ") || !this.auth) {
+      return false;
+    }
+
+    try {
+      return (
+        this.auth.verifyToken(authorization.slice("Bearer ".length)).role ===
+        "admin"
+      );
+    } catch {
+      return false;
+    }
   }
 
   private tokensMatch(providedToken: string, expectedToken: string) {

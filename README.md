@@ -46,9 +46,10 @@ pnpm start
 10. Reemplazar gradualmente `EventStoreService` por Prisma con `docs/10-event-store-prisma.md`.
 11. Proteger endpoints persistentes con token temporal usando `docs/11-admin-api-token.md`.
 12. Poblar datos demo controlados con Prisma usando `docs/12-seed-demo-prisma.md`.
-13. Conectar el dashboard frontend al endpoint publico sanitizado.
-14. Leer los commits en orden con `git log --oneline --reverse`.
-15. Ejecutar localmente con `pnpm dev`.
+13. Crear login y roles iniciales con `docs/13-auth-login-roles.md`.
+14. Conectar el dashboard frontend al endpoint publico sanitizado.
+15. Leer los commits en orden con `git log --oneline --reverse`.
+16. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 

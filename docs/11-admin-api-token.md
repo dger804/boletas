@@ -1,6 +1,8 @@
 # Token administrativo temporal
 
-La API ya usa MySQL real en Render. Mientras no exista login con roles, los endpoints administrativos quedan protegidos con un token temporal.
+La API ya usa MySQL real en Render. Los endpoints administrativos empezaron protegidos con un token temporal.
+
+Desde la etapa de login, este token queda como puente de transicion. El camino recomendado para nuevas pantallas administrativas es iniciar sesion en `/api/auth/login` y usar `Authorization: Bearer <token_de_sesion>`. Ver `docs/13-auth-login-roles.md`.
 
 ## Variable requerida en Render
 
@@ -40,7 +42,7 @@ Opcion recomendada:
 curl -H "x-admin-token: TU_TOKEN" https://api-boletas.corporacionceer.com/api/events
 ```
 
-Tambien se acepta:
+Tambien se acepta el token temporal como bearer:
 
 ```bash
 curl -H "Authorization: Bearer TU_TOKEN" https://api-boletas.corporacionceer.com/api/events
@@ -58,11 +60,11 @@ En desarrollo local sin `ADMIN_API_TOKEN`, el guard permite continuar para no bl
 
 ## Limite de esta solucion
 
-Este token no reemplaza autenticacion real.
+Este token no reemplaza autenticacion real. Debe retirarse cuando el login y los roles cubran todo el flujo administrativo.
 
 Siguiente etapa de seguridad:
 
-1. Login.
-2. Sesion o JWT.
-3. Roles `admin`, `seller`, `gate`, `viewer`.
-4. Autorizacion por evento, boleta, distribuidor y pago.
+1. Pantalla de login.
+2. Roles aplicados por endpoint y flujo.
+3. Autorizacion por evento, boleta, distribuidor y pago.
+4. Eliminacion del token temporal.

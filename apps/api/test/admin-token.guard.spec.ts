@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AdminTokenGuard } from "../src/auth/admin-token.guard";
+import { AuthService } from "../src/auth/auth.service";
 
 const createConfig = (values: Record<string, string | undefined>) =>
   ({
@@ -73,6 +74,25 @@ describe("AdminTokenGuard", () => {
       guard.canActivate(
         createContext({ authorization: "Bearer correct-token" })
       )
+    ).toBe(true);
+  });
+
+  it("accepts admin session bearer tokens", () => {
+    const auth = {
+      verifyToken: jest.fn().mockReturnValue({
+        email: "admin@example.com",
+        id: "usr_admin",
+        name: "Admin",
+        role: "admin"
+      })
+    } as unknown as AuthService;
+    const guard = new AdminTokenGuard(
+      createConfig({ NODE_ENV: "production" }),
+      auth
+    );
+
+    expect(
+      guard.canActivate(createContext({ authorization: "Bearer session-token" }))
     ).toBe(true);
   });
 });
