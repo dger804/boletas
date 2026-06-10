@@ -36,6 +36,14 @@ Y el backend en Render usa:
 CORS_ORIGIN=https://boletas.corporacionceer.com
 ```
 
+Rutas frontend actuales:
+
+```txt
+/           landing publica promocional
+/login      formulario de acceso
+/dashboard  tablero operativo con sesion en el navegador
+```
+
 ## Por que esta forma encaja con Hostinger
 
 Hostinger permite sitios estaticos, pero NestJS necesita un runtime Node.js. Para esta arquitectura hay dos caminos:
@@ -116,4 +124,4 @@ Ese endpoint devuelve metricas agregadas, muestras anonimizadas y pagos reciente
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
-La siguiente decision tecnica es construir la pantalla de login y empezar a mover las pantallas operativas al token de sesion.
+La siguiente decision tecnica es mover las acciones operativas reales al token de sesion y aplicar autorizacion por rol en cada flujo.

@@ -47,9 +47,10 @@ pnpm start
 11. Proteger endpoints persistentes con token temporal usando `docs/11-admin-api-token.md`.
 12. Poblar datos demo controlados con Prisma usando `docs/12-seed-demo-prisma.md`.
 13. Crear login y roles iniciales con `docs/13-auth-login-roles.md`.
-14. Conectar el dashboard frontend al endpoint publico sanitizado.
-15. Leer los commits en orden con `git log --oneline --reverse`.
-16. Ejecutar localmente con `pnpm dev`.
+14. Publicar landing en `/`, login en `/login` y tablero en `/dashboard`.
+15. Conectar el dashboard frontend al endpoint publico sanitizado.
+16. Leer los commits en orden con `git log --oneline --reverse`.
+17. Ejecutar localmente con `pnpm dev`.
 
 ## Estado inicial
 

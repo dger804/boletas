@@ -1,0 +1,208 @@
+---
+import { ArrowLeft, LockKeyhole, Ticket } from "lucide-astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
+const loginUrl = `${apiBase}/auth/login`;
+---
+
+<BaseLayout title="Iniciar sesion | Boletas">
+  <main class="min-h-screen bg-zinc-950 text-white">
+    <div class="grid min-h-screen lg:grid-cols-[0.95fr_1.05fr]">
+      <section class="relative hidden overflow-hidden lg:block">
+        <canvas
+          aria-hidden="true"
+          class="absolute inset-0 h-full w-full"
+          data-login-canvas
+        ></canvas>
+        <div class="absolute inset-0 bg-black/35"></div>
+        <div class="relative z-10 flex h-full flex-col justify-between p-10">
+          <a class="inline-flex items-center gap-3 text-white" href="/">
+            <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white text-zinc-950">
+              <Ticket size={20} />
+            </span>
+            <span class="text-sm font-semibold uppercase tracking-[0.18em]">Boletas</span>
+          </a>
+          <div class="max-w-xl">
+            <p class="text-sm font-semibold uppercase tracking-[0.14em] text-emerald-200">Acceso operativo</p>
+            <h1 class="mt-4 text-5xl font-semibold leading-tight">Gestion segura para el equipo del evento.</h1>
+            <p class="mt-5 text-lg leading-8 text-zinc-200">
+              Usa tu cuenta para revisar boletas, pagos y entrada sin exponer el token administrativo temporal.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex items-center justify-center bg-zinc-50 px-5 py-10 text-zinc-950 sm:px-8">
+        <div class="w-full max-w-md">
+          <a class="mb-8 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-950" href="/">
+            <ArrowLeft size={16} />
+            Volver al inicio
+          </a>
+
+          <div class="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+            <span class="inline-flex h-11 w-11 items-center justify-center rounded-md bg-zinc-950 text-white">
+              <LockKeyhole size={20} />
+            </span>
+            <h2 class="mt-6 text-2xl font-semibold">Iniciar sesion</h2>
+            <p class="mt-2 text-sm leading-6 text-zinc-600">
+              Ingresa con el usuario admin creado para este entorno.
+            </p>
+
+            <form class="mt-6 grid gap-4" data-login-form data-login-url={loginUrl}>
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Correo</span>
+                <input
+                  autocomplete="email"
+                  class="h-11 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  name="email"
+                  required
+                  type="email"
+                />
+              </label>
+
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Contrasena</span>
+                <input
+                  autocomplete="current-password"
+                  class="h-11 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  minlength="8"
+                  name="password"
+                  required
+                  type="password"
+                />
+              </label>
+
+              <p class="hidden rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" data-login-error></p>
+
+              <button
+                class="inline-flex h-11 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                type="submit"
+              >
+                Entrar
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    interface LoginResponse {
+      token: string;
+      tokenType: "Bearer";
+      expiresAt: string;
+      user: {
+        id: string;
+        email: string;
+        name: string;
+        role: "admin" | "seller" | "gate";
+      };
+    }
+
+    const form = document.querySelector<HTMLFormElement>("[data-login-form]");
+    const errorBox = document.querySelector<HTMLElement>("[data-login-error]");
+
+    const showError = (message: string) => {
+      if (!errorBox) {
+        return;
+      }
+
+      errorBox.textContent = message;
+      errorBox.classList.remove("hidden");
+    };
+
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorBox?.classList.add("hidden");
+
+      const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+      const loginUrl = form.getAttribute("data-login-url");
+
+      if (!loginUrl) {
+        showError("No se encontro la ruta de login.");
+        return;
+      }
+
+      const data = new FormData(form);
+      const email = String(data.get("email") ?? "").trim();
+      const password = String(data.get("password") ?? "");
+
+      submitButton?.setAttribute("disabled", "true");
+
+      try {
+        const response = await fetch(loginUrl, {
+          body: JSON.stringify({ email, password }),
+          headers: {
+            "Content-Type": "application/json"
+          },
+          method: "POST"
+        });
+
+        if (!response.ok) {
+          showError("Correo o contrasena incorrectos.");
+          return;
+        }
+
+        const login = (await response.json()) as LoginResponse;
+        sessionStorage.setItem("boletas.auth.token", login.token);
+        sessionStorage.setItem("boletas.auth.expiresAt", login.expiresAt);
+        sessionStorage.setItem("boletas.auth.user", JSON.stringify(login.user));
+        window.location.assign("/dashboard");
+      } catch {
+        showError("No fue posible conectar con la API.");
+      } finally {
+        submitButton?.removeAttribute("disabled");
+      }
+    });
+
+    const canvas = document.querySelector<HTMLCanvasElement>("[data-login-canvas]");
+
+    if (canvas) {
+      const context = canvas.getContext("2d");
+      const resize = () => {
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(canvas.clientWidth * ratio);
+        canvas.height = Math.floor(canvas.clientHeight * ratio);
+        context?.setTransform(ratio, 0, 0, ratio, 0, 0);
+      };
+
+      const draw = (time: number) => {
+        if (!context) {
+          return;
+        }
+
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = "#09090b";
+        context.fillRect(0, 0, width, height);
+
+        for (let i = 0; i < 18; i += 1) {
+          const y = (height / 18) * i;
+          const x = Math.sin(time * 0.001 + i) * 22 + width * 0.5;
+          context.strokeStyle = i % 3 === 0 ? "rgba(52,211,153,0.42)" : "rgba(255,255,255,0.1)";
+          context.lineWidth = i % 3 === 0 ? 2 : 1;
+          context.beginPath();
+          context.moveTo(0, y);
+          context.bezierCurveTo(width * 0.25, y + 40, x, y - 60, width, y + 20);
+          context.stroke();
+        }
+
+        context.fillStyle = "rgba(251,191,36,0.78)";
+        for (let i = 0; i < 26; i += 1) {
+          const x = (i * 73 + time * 0.024) % width;
+          const y = (i * 91) % height;
+          context.fillRect(x, y, 42, 18);
+        }
+
+        requestAnimationFrame(draw);
+      };
+
+      resize();
+      window.addEventListener("resize", resize);
+      requestAnimationFrame(draw);
+    }
+  </script>
+</BaseLayout>

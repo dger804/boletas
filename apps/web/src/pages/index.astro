@@ -1,671 +1,266 @@
 ---
 import {
-  Bell,
-  CalendarDays,
-  CircleDollarSign,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
   ClipboardCheck,
-  Filter,
-  Plus,
+  LockKeyhole,
   ScanLine,
-  Search,
+  ShieldCheck,
   Ticket,
-  Upload,
-  UserRoundCheck,
   WalletCards
 } from "lucide-astro";
-import DistributionList from "../components/DistributionList.astro";
-import MetricCard from "../components/MetricCard.astro";
-import PaymentEvidenceList from "../components/PaymentEvidenceList.astro";
-import TicketTable from "../components/TicketTable.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import type {
-  EvidenceStatus,
-  PaymentMethod,
-  PublicEventDashboard,
-  TicketStatus
-} from "@boletas/shared";
 
-const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
-const publicDashboardUrl = `${apiBase}/public/events/evt_demo/dashboard`;
-
-const fallbackDashboard: PublicEventDashboard = {
-  event: {
-    date: "2026-07-18T20:00:00.000Z",
-    expectedAttendees: 120,
-    name: "Lanzamiento Demo",
-    venue: "Auditorio Principal"
-  },
-  totals: {
-    available: 1,
-    assigned: 1,
-    capitalization: 45000,
-    grossSales: 270000,
-    paid: 3,
-    pendingToCollect: 90000,
-    sold: 4,
-    tickets: 7,
-    used: 1,
-    void: 1
-  },
-  distributors: [
-    {
-      assignedTickets: 3,
-      grossSales: 180000,
-      label: "Responsable 1",
-      paidTickets: 2,
-      usedTickets: 0
-    },
-    {
-      assignedTickets: 1,
-      grossSales: 0,
-      label: "Responsable 2",
-      paidTickets: 0,
-      usedTickets: 0
-    },
-    {
-      assignedTickets: 1,
-      grossSales: 90000,
-      label: "Responsable 3",
-      paidTickets: 1,
-      usedTickets: 1
-    }
-  ],
-  recentPayments: [
-    {
-      amount: 90000,
-      label: "Evidencia 1",
-      method: "transfer",
-      status: "pending"
-    },
-    {
-      amount: 90000,
-      label: "Evidencia 2",
-      method: "cash",
-      status: "approved"
-    }
-  ],
-  ticketSamples: [
-    {
-      amount: 90000,
-      detail: "Pago validado",
-      distributorLabel: "Responsable 1",
-      reference: "Boleta 1",
-      status: "paid"
-    },
-    {
-      amount: 90000,
-      detail: "Asignada a responsable",
-      distributorLabel: "Responsable 1",
-      reference: "Boleta 2",
-      status: "assigned"
-    },
-    {
-      amount: 90000,
-      detail: "Pago pendiente de validar",
-      distributorLabel: "Responsable 2",
-      reference: "Boleta 3",
-      status: "sold"
-    },
-    {
-      amount: 90000,
-      detail: "Ingreso registrado",
-      distributorLabel: "Responsable 3",
-      reference: "Boleta 4",
-      status: "used"
-    },
-    {
-      amount: 90000,
-      detail: "Disponible para asignar",
-      distributorLabel: "Sin asignar",
-      reference: "Boleta 5",
-      status: "available"
-    }
-  ]
-};
-
-const dashboard = fallbackDashboard;
-
-const money = new Intl.NumberFormat("es-CO", {
-  currency: "COP",
-  maximumFractionDigits: 0,
-  style: "currency"
-});
-
-const eventDate = new Intl.DateTimeFormat("es-CO", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric"
-}).format(new Date(dashboard.event.date));
-
-const ticketStatusLabels: Record<TicketStatus, "Disponible" | "Asignada" | "Reservada" | "Vendida" | "Pagada" | "Usada" | "Bloqueada"> = {
-  assigned: "Asignada",
-  available: "Disponible",
-  paid: "Pagada",
-  reserved: "Reservada",
-  sold: "Vendida",
-  used: "Usada",
-  void: "Bloqueada"
-};
-
-const evidenceStatusLabels: Record<EvidenceStatus, "Aprobado" | "Pendiente" | "Rechazado"> = {
-  approved: "Aprobado",
-  pending: "Pendiente",
-  rejected: "Rechazado"
-};
-
-const paymentMethodLabels: Record<PaymentMethod, string> = {
-  cash: "Efectivo",
-  transfer: "Transferencia"
-};
-
-const pendingValidation = Math.max(dashboard.totals.sold - dashboard.totals.paid, 0);
-
-const metrics = [
+const capabilities = [
   {
-    label: "Recaudo validado",
-    value: money.format(dashboard.totals.grossSales),
-    detail: `${dashboard.totals.paid} boletas pagadas`,
-    detailField: "metric-gross-detail",
-    tone: "emerald",
-    valueField: "metric-gross-value",
-    icon: CircleDollarSign
+    icon: Ticket,
+    label: "Inventario claro",
+    text: "Controla lotes, estados, responsables y disponibilidad sin mezclar hojas sueltas."
   },
   {
-    label: "Por validar",
-    value: money.format(dashboard.totals.pendingToCollect),
-    detail: `${pendingValidation} ventas pendientes`,
-    detailField: "metric-pending-detail",
-    tone: "amber",
-    valueField: "metric-pending-value",
-    icon: Upload
+    icon: WalletCards,
+    label: "Pagos con evidencia",
+    text: "Registra transferencia, efectivo, capitalizacion y validacion antes del ingreso."
   },
   {
-    label: "Capitalizacion",
-    value: money.format(dashboard.totals.capitalization),
-    detail: "Meta interna del evento",
-    detailField: "metric-capitalization-detail",
-    tone: "zinc",
-    valueField: "metric-capitalization-value",
-    icon: WalletCards
-  },
-  {
-    label: "Ingreso",
-    value: `${dashboard.totals.used} / ${dashboard.event.expectedAttendees}`,
-    detail: "Usadas el dia del evento",
-    detailField: "metric-entry-detail",
-    tone: "rose",
-    valueField: "metric-entry-value",
-    icon: UserRoundCheck
+    icon: ScanLine,
+    label: "Entrada el dia del evento",
+    text: "Consulta quien pago, quien esta bloqueado y que boleta ya fue usada."
   }
 ] as const;
 
-const distributors = dashboard.distributors.map((distributor) => ({
-  amount: money.format(distributor.grossSales),
-  name: distributor.label,
-  paid: distributor.paidTickets,
-  tickets: distributor.assignedTickets,
-  used: distributor.usedTickets
-}));
-
-const evidenceRows = dashboard.recentPayments.map((payment) => ({
-  amount: money.format(payment.amount),
-  label: payment.label,
-  method: paymentMethodLabels[payment.method],
-  status: evidenceStatusLabels[payment.status]
-}));
-
-const tickets = dashboard.ticketSamples.map((ticket) => ({
-  amount: money.format(ticket.amount),
-  detail: ticket.detail,
-  distributor: ticket.distributorLabel,
-  reference: ticket.reference,
-  status: ticketStatusLabels[ticket.status]
-}));
-
+const checkpoints = [
+  "Asignacion de boletas por responsable",
+  "Recaudo validado y pendiente",
+  "Evidencias protegidas",
+  "Corte operativo del evento"
+];
 ---
 
-<BaseLayout title="Boletas | Control de evento">
-  <div class="grid min-h-screen lg:grid-cols-[240px_1fr]" data-dashboard-root data-dashboard-url={publicDashboardUrl}>
-    <aside class="border-b border-zinc-200 bg-white px-4 py-4 lg:border-b-0 lg:border-r">
-      <div class="flex h-full flex-col gap-6">
-        <div class="flex items-center gap-3">
-          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+<BaseLayout title="Boletas | Gestion de eventos">
+  <main class="min-h-screen bg-zinc-950 text-white">
+    <section class="relative isolate flex min-h-[88svh] overflow-hidden">
+      <canvas
+        aria-hidden="true"
+        class="absolute inset-0 h-full w-full"
+        data-hero-canvas
+      ></canvas>
+      <div class="absolute inset-0 bg-black/45"></div>
+
+      <nav class="absolute left-0 right-0 top-0 z-20 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
+        <a class="inline-flex items-center gap-3 text-white" href="/">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white text-zinc-950">
             <Ticket size={20} />
           </span>
-          <div>
-            <p class="text-sm font-semibold text-zinc-950">Boletas</p>
-            <p class="text-xs text-zinc-500">Evento activo</p>
+          <span class="text-sm font-semibold uppercase tracking-[0.18em]">Boletas</span>
+        </a>
+        <a
+          class="inline-flex h-10 items-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-emerald-100"
+          href="/login"
+        >
+          <LockKeyhole size={16} />
+          Iniciar sesion
+        </a>
+      </nav>
+
+      <div class="relative z-10 mx-auto flex w-full max-w-7xl items-end px-5 pb-14 pt-28 sm:px-8 lg:pb-20">
+        <div class="max-w-3xl">
+          <p class="mb-5 inline-flex items-center gap-2 rounded-md bg-white/12 px-3 py-2 text-sm font-medium text-emerald-100 ring-1 ring-white/20 backdrop-blur">
+            <ShieldCheck size={16} />
+            Control operativo para eventos con venta fisica y transferencias
+          </p>
+          <h1 class="text-5xl font-semibold leading-none text-white sm:text-6xl lg:text-7xl">
+            Boletas
+          </h1>
+          <p class="mt-6 max-w-2xl text-lg leading-8 text-zinc-100 sm:text-xl">
+            Gestiona asignaciones, ventas, evidencias de pago, capitalizacion y entrada del evento desde una sola operacion.
+          </p>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a
+              class="inline-flex h-12 items-center gap-2 rounded-md bg-emerald-400 px-5 text-sm font-semibold text-zinc-950 hover:bg-emerald-300"
+              href="/login"
+            >
+              Entrar al sistema
+              <ArrowRight size={18} />
+            </a>
+            <a
+              class="inline-flex h-12 items-center rounded-md border border-white/35 px-5 text-sm font-semibold text-white hover:bg-white/10"
+              href="#operacion"
+            >
+              Ver alcance
+            </a>
           </div>
         </div>
+      </div>
+    </section>
 
-        <nav class="grid gap-1 text-sm">
-          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/">
-            Tablero
-          </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href={publicDashboardUrl}>
-            Eventos
-          </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
-            Boletas
-          </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
-            Pagos
-          </a>
-        </nav>
-
-        <div class="mt-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-          <p class="text-xs font-medium text-zinc-500">Subdominio</p>
-          <p class="mt-1 break-all text-sm font-semibold text-zinc-950">
-            boletas.corporacionceer.com
+    <section id="operacion" class="bg-zinc-50 px-5 py-12 text-zinc-950 sm:px-8 lg:py-16">
+      <div class="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700">Operacion del evento</p>
+          <h2 class="mt-3 text-3xl font-semibold sm:text-4xl">Del inventario al ingreso, sin perder el rastro.</h2>
+          <p class="mt-4 text-base leading-7 text-zinc-600">
+            La app esta pensada para equipos que distribuyen boletas, reciben pagos por transferencia o efectivo y necesitan llegar al dia del evento con datos claros.
           </p>
         </div>
-      </div>
-    </aside>
 
-    <main class="min-w-0">
-      <header class="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div class="flex items-center gap-2 text-xs font-medium text-zinc-500">
-              <CalendarDays size={14} />
-              <span data-dashboard-field="event-summary">{eventDate} - {dashboard.event.venue}</span>
-            </div>
-            <h1 class="mt-2 text-2xl font-semibold text-zinc-950" data-dashboard-field="event-name">
-              {dashboard.event.name}
-            </h1>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2">
-            <label class="relative block">
-              <Search class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
-              <input
-                class="h-10 w-64 rounded-md border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-950 outline-none focus:border-zinc-400"
-                placeholder="Buscar referencia"
-                type="search"
-              />
-            </label>
-            <button class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50" title="Filtrar">
-              <Filter size={18} />
-            </button>
-            <button class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50" title="Alertas">
-              <Bell size={18} />
-            </button>
-            <button class="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800">
-              <Plus size={18} />
-              Boleta
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div class="space-y-6 p-4 sm:p-6">
-        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-4 md:grid-cols-3">
           {
-            metrics.map((metric) => (
-              <MetricCard
-                detail={metric.detail}
-                icon={metric.icon}
-                label={metric.label}
-                tone={metric.tone}
-                value={metric.value}
-                detailField={metric.detailField}
-                valueField={metric.valueField}
-              />
+            capabilities.map(({ icon: Icon, label, text }) => (
+              <article class="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
+                  <Icon size={18} />
+                </span>
+                <h3 class="mt-5 text-base font-semibold">{label}</h3>
+                <p class="mt-2 text-sm leading-6 text-zinc-600">{text}</p>
+              </article>
             ))
           }
-        </section>
-
-        <section class="grid gap-6 xl:grid-cols-[1fr_360px]">
-          <div data-dashboard-section="tickets">
-            <TicketTable rows={tickets} />
-          </div>
-
-          <div class="space-y-6">
-            <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <h2 class="text-sm font-semibold text-zinc-950">Entrada</h2>
-                  <p class="mt-1 text-xs text-zinc-500">Validacion de boleta pagada</p>
-                </div>
-                <button class="inline-flex h-9 w-9 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700" title="Escanear">
-                  <ScanLine size={18} />
-                </button>
-              </div>
-              <div class="mt-4 grid grid-cols-2 divide-x divide-zinc-100 border-t border-zinc-100 pt-4">
-                <div class="pr-3">
-                  <p class="text-xs font-medium text-emerald-700">Permitidas</p>
-                  <p class="mt-2 text-2xl font-semibold text-emerald-950" data-dashboard-field="entry-allowed">{dashboard.totals.paid}</p>
-                </div>
-                <div class="pl-3">
-                  <p class="text-xs font-medium text-rose-700">Bloqueadas</p>
-                  <p class="mt-2 text-2xl font-semibold text-rose-950" data-dashboard-field="entry-blocked">{dashboard.totals.void}</p>
-                </div>
-              </div>
-            </section>
-
-            <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-              <div class="flex items-center gap-3">
-                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-amber-50 text-amber-700">
-                  <ClipboardCheck size={18} />
-                </span>
-                <div>
-                  <h2 class="text-sm font-semibold text-zinc-950">Corte rapido</h2>
-                  <p class="mt-1 text-xs text-zinc-500" data-dashboard-field="pending-validation">{pendingValidation} ventas pendientes de validar</p>
-                </div>
-              </div>
-              <button class="mt-4 h-10 w-full rounded-md border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-                Cerrar corte
-              </button>
-            </section>
-          </div>
-        </section>
-
-        <section class="grid gap-6 xl:grid-cols-[1fr_360px]">
-          <div data-dashboard-section="distribution">
-            <DistributionList rows={distributors} />
-          </div>
-          <div data-dashboard-section="evidence">
-            <PaymentEvidenceList rows={evidenceRows} />
-          </div>
-        </section>
+        </div>
       </div>
-    </main>
-  </div>
+    </section>
+
+    <section class="bg-white px-5 py-12 text-zinc-950 sm:px-8 lg:py-16">
+      <div class="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
+        <div class="grid gap-3 sm:grid-cols-2">
+          {
+            checkpoints.map((item) => (
+              <div class="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <CheckCircle2 class="shrink-0 text-emerald-600" size={20} />
+                <span class="text-sm font-medium text-zinc-800">{item}</span>
+              </div>
+            ))
+          }
+        </div>
+
+        <div class="rounded-lg border border-zinc-200 bg-zinc-950 p-6 text-white shadow-sm">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm text-zinc-400">Tablero demo</p>
+              <p class="mt-1 text-2xl font-semibold">$270.000</p>
+            </div>
+            <span class="inline-flex h-11 w-11 items-center justify-center rounded-md bg-emerald-400 text-zinc-950">
+              <BarChart3 size={22} />
+            </span>
+          </div>
+          <div class="mt-6 grid gap-3">
+            <div class="flex items-center justify-between rounded-md bg-white/10 px-3 py-3">
+              <span class="inline-flex items-center gap-2 text-sm text-zinc-200">
+                <ClipboardCheck size={16} />
+                Ventas pendientes
+              </span>
+              <strong>1</strong>
+            </div>
+            <div class="flex items-center justify-between rounded-md bg-white/10 px-3 py-3">
+              <span class="inline-flex items-center gap-2 text-sm text-zinc-200">
+                <ScanLine size={16} />
+                Ingresos usados
+              </span>
+              <strong>1 / 120</strong>
+            </div>
+          </div>
+          <a
+            class="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white text-sm font-semibold text-zinc-950 hover:bg-emerald-100"
+            href="/login"
+          >
+            Acceder con usuario
+            <ArrowRight size={17} />
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <script>
-    const initDashboardRefresh = () => {
-      type RuntimeTicketStatus = "assigned" | "available" | "paid" | "reserved" | "sold" | "used" | "void";
-      type RuntimeTicketLabel = "Disponible" | "Asignada" | "Reservada" | "Vendida" | "Pagada" | "Usada" | "Bloqueada";
-      type RuntimeEvidenceStatus = "approved" | "pending" | "rejected";
-      type RuntimeEvidenceLabel = "Aprobado" | "Pendiente" | "Rechazado";
-      type RuntimePaymentMethod = "cash" | "transfer";
+    const canvas = document.querySelector<HTMLCanvasElement>("[data-hero-canvas]");
 
-      interface RuntimePublicDashboard {
-        event: {
-          date: string;
-          expectedAttendees: number;
-          name: string;
-          venue: string;
-        };
-        totals: {
-          available: number;
-          assigned: number;
-          capitalization: number;
-          grossSales: number;
-          paid: number;
-          pendingToCollect: number;
-          sold: number;
-          tickets: number;
-          used: number;
-          void: number;
-        };
-        distributors: Array<{
-          label: string;
-          assignedTickets: number;
-          paidTickets: number;
-          usedTickets: number;
-          grossSales: number;
-        }>;
-        ticketSamples: Array<{
-          reference: string;
-          status: RuntimeTicketStatus;
-          amount: number;
-          detail: string;
-          distributorLabel: string;
-        }>;
-        recentPayments: Array<{
-          label: string;
-          method: RuntimePaymentMethod;
-          amount: number;
-          status: RuntimeEvidenceStatus;
-        }>;
-      }
+    if (canvas) {
+      const context = canvas.getContext("2d");
+      const colors = ["#34d399", "#fbbf24", "#fb7185", "#e5e7eb"];
+      const tickets = Array.from({ length: 34 }, (_, index) => ({
+        color: colors[index % colors.length],
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.18 + Math.random() * 0.22,
+        x: Math.random(),
+        y: Math.random()
+      }));
 
-      const root = document.querySelector<HTMLElement>("[data-dashboard-root]");
-      const dashboardUrl = root?.getAttribute("data-dashboard-url");
-
-      if (!dashboardUrl) {
-        return;
-      }
-
-      const money = new Intl.NumberFormat("es-CO", {
-        currency: "COP",
-        maximumFractionDigits: 0,
-        style: "currency"
-      });
-
-      const dateFormatter = new Intl.DateTimeFormat("es-CO", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric"
-      });
-
-      const ticketStatusLabels: Record<RuntimeTicketStatus, RuntimeTicketLabel> = {
-        assigned: "Asignada",
-        available: "Disponible",
-        paid: "Pagada",
-        reserved: "Reservada",
-        sold: "Vendida",
-        used: "Usada",
-        void: "Bloqueada"
+      const resize = () => {
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(canvas.clientWidth * ratio);
+        canvas.height = Math.floor(canvas.clientHeight * ratio);
+        context?.setTransform(ratio, 0, 0, ratio, 0, 0);
       };
 
-      const ticketStatusClasses: Record<RuntimeTicketLabel, string> = {
-        Asignada: "bg-zinc-100 text-zinc-700",
-        Bloqueada: "bg-rose-50 text-rose-700",
-        Disponible: "bg-sky-50 text-sky-700",
-        Pagada: "bg-emerald-50 text-emerald-700",
-        Reservada: "bg-violet-50 text-violet-700",
-        Usada: "bg-indigo-50 text-indigo-700",
-        Vendida: "bg-amber-50 text-amber-700"
-      };
-
-      const evidenceStatusLabels: Record<RuntimeEvidenceStatus, RuntimeEvidenceLabel> = {
-        approved: "Aprobado",
-        pending: "Pendiente",
-        rejected: "Rechazado"
-      };
-
-      const evidenceStatusClasses: Record<RuntimeEvidenceLabel, string> = {
-        Aprobado: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-        Pendiente: "bg-amber-50 text-amber-700 ring-amber-200",
-        Rechazado: "bg-rose-50 text-rose-700 ring-rose-200"
-      };
-
-      const paymentMethodLabels: Record<RuntimePaymentMethod, string> = {
-        cash: "Efectivo",
-        transfer: "Transferencia"
-      };
-
-      const escapeHtml = (value: unknown) =>
-        String(value)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-
-      const setText = (field: string, value: unknown) => {
-        const element = document.querySelector(`[data-dashboard-field="${field}"]`);
-
-        if (element) {
-          element.textContent = String(value);
+      const drawTicket = (
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        color: string,
+        angle: number
+      ) => {
+        if (!context) {
+          return;
         }
+
+        context.save();
+        context.translate(x, y);
+        context.rotate(angle);
+        context.fillStyle = color;
+        context.globalAlpha = 0.86;
+        context.fillRect(-width / 2, -height / 2, width, height);
+        context.globalAlpha = 0.28;
+        context.fillStyle = "#111827";
+        context.fillRect(-width / 2 + 12, -height / 2 + 10, width - 24, 5);
+        context.fillRect(-width / 2 + 12, height / 2 - 14, width * 0.48, 4);
+        context.restore();
       };
 
-      const setSection = (section: string, html: string) => {
-        const element = document.querySelector(`[data-dashboard-section="${section}"]`);
-
-        if (element) {
-          element.innerHTML = html;
+      const draw = (time: number) => {
+        if (!context) {
+          return;
         }
-      };
 
-      const renderTickets = (dashboard: RuntimePublicDashboard) => {
-        const rows = Array.isArray(dashboard.ticketSamples) ? dashboard.ticketSamples : [];
-        const body = rows.length
-          ? rows
-              .map((ticket) => {
-                const status = ticketStatusLabels[ticket.status] ?? "Disponible";
-                const statusClass = ticketStatusClasses[status] ?? ticketStatusClasses.Disponible;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = "#09090b";
+        context.fillRect(0, 0, width, height);
 
-                return `
-                  <tr class="hover:bg-zinc-50">
-                    <td class="whitespace-nowrap px-4 py-3 font-medium text-zinc-950">${escapeHtml(ticket.reference)}</td>
-                    <td class="whitespace-nowrap px-4 py-3 text-zinc-600">${escapeHtml(ticket.detail)}</td>
-                    <td class="whitespace-nowrap px-4 py-3 text-zinc-600">${escapeHtml(ticket.distributorLabel)}</td>
-                    <td class="whitespace-nowrap px-4 py-3">
-                      <span class="rounded-md px-2 py-1 text-xs font-medium ${statusClass}">${escapeHtml(status)}</span>
-                    </td>
-                    <td class="whitespace-nowrap px-4 py-3 text-right font-semibold text-zinc-950">${escapeHtml(money.format(ticket.amount))}</td>
-                  </tr>
-                `;
-              })
-              .join("")
-          : `<tr><td class="px-4 py-6 text-center text-sm text-zinc-500" colspan="5">Sin boletas para mostrar</td></tr>`;
+        context.strokeStyle = "rgba(255,255,255,0.1)";
+        context.lineWidth = 1;
+        for (let x = 0; x < width; x += 72) {
+          context.beginPath();
+          context.moveTo(x, 0);
+          context.lineTo(x + width * 0.18, height);
+          context.stroke();
+        }
 
-        return `
-          <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
-            <div class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Boletas</h2>
-                <p class="mt-1 text-xs text-zinc-500">Estado operativo de inventario</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <button class="h-9 rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50">Filtrar</button>
-                <button class="h-9 rounded-md bg-zinc-950 px-3 text-xs font-medium text-white hover:bg-zinc-800">Nueva</button>
-              </div>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-zinc-100 text-left text-sm">
-                <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th class="px-4 py-3 font-medium">Referencia</th>
-                    <th class="px-4 py-3 font-medium">Detalle</th>
-                    <th class="px-4 py-3 font-medium">Distribuidor</th>
-                    <th class="px-4 py-3 font-medium">Estado</th>
-                    <th class="px-4 py-3 text-right font-medium">Valor</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-100 bg-white">${body}</tbody>
-              </table>
-            </div>
-          </section>
-        `;
-      };
-
-      const renderDistribution = (dashboard: RuntimePublicDashboard) => {
-        const rows = Array.isArray(dashboard.distributors) ? dashboard.distributors : [];
-        const body = rows.length
-          ? rows
-              .map(
-                (row) => `
-                  <div class="grid grid-cols-[1fr_auto] gap-3 py-3">
-                    <div>
-                      <p class="text-sm font-medium text-zinc-950">${escapeHtml(row.label)}</p>
-                      <p class="mt-1 text-xs text-zinc-500">
-                        ${escapeHtml(row.assignedTickets)} asignadas - ${escapeHtml(row.paidTickets)} pagadas - ${escapeHtml(row.usedTickets)} usadas
-                      </p>
-                    </div>
-                    <div class="text-right">
-                      <p class="text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.grossSales))}</p>
-                      <p class="mt-1 text-xs text-emerald-700">Recaudado</p>
-                    </div>
-                  </div>
-                `
-              )
-              .join("")
-          : `<div class="py-6 text-sm text-zinc-500">Sin responsables para mostrar</div>`;
-
-        return `
-          <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Distribucion</h2>
-                <p class="mt-1 text-xs text-zinc-500">Asignacion y recaudo por responsable</p>
-              </div>
-              <button class="inline-flex h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50">Ver todo</button>
-            </div>
-            <div class="mt-4 divide-y divide-zinc-100">${body}</div>
-          </section>
-        `;
-      };
-
-      const renderEvidence = (dashboard: RuntimePublicDashboard) => {
-        const rows = Array.isArray(dashboard.recentPayments) ? dashboard.recentPayments : [];
-        const body = rows.length
-          ? rows
-              .map((payment) => {
-                const status = evidenceStatusLabels[payment.status] ?? "Pendiente";
-                const statusClass = evidenceStatusClasses[status] ?? evidenceStatusClasses.Pendiente;
-
-                return `
-                  <article class="py-3 first:pt-0 last:pb-0">
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <p class="text-sm font-medium text-zinc-950">${escapeHtml(payment.label)}</p>
-                        <p class="mt-1 text-xs text-zinc-500">${escapeHtml(paymentMethodLabels[payment.method] ?? "Metodo no registrado")}</p>
-                      </div>
-                      <span class="rounded-md px-2 py-1 text-xs font-medium ring-1 ${statusClass}">${escapeHtml(status)}</span>
-                    </div>
-                    <p class="mt-3 text-sm font-semibold text-zinc-950">${escapeHtml(money.format(payment.amount))}</p>
-                  </article>
-                `;
-              })
-              .join("")
-          : `<div class="py-6 text-sm text-zinc-500">Sin evidencias para mostrar</div>`;
-
-        return `
-          <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Evidencias</h2>
-                <p class="mt-1 text-xs text-zinc-500">Transferencias y efectivo por validar</p>
-              </div>
-              <button class="inline-flex h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50">Revisar</button>
-            </div>
-            <div class="mt-4 divide-y divide-zinc-100">${body}</div>
-          </section>
-        `;
-      };
-
-      const renderDashboard = (dashboard: RuntimePublicDashboard) => {
-        const pendingValidation = Math.max((dashboard.totals.sold ?? 0) - (dashboard.totals.paid ?? 0), 0);
-
-        setText("event-summary", `${dateFormatter.format(new Date(dashboard.event.date))} - ${dashboard.event.venue}`);
-        setText("event-name", dashboard.event.name);
-        setText("metric-gross-value", money.format(dashboard.totals.grossSales));
-        setText("metric-gross-detail", `${dashboard.totals.paid} boletas pagadas`);
-        setText("metric-pending-value", money.format(dashboard.totals.pendingToCollect));
-        setText("metric-pending-detail", `${pendingValidation} ventas pendientes`);
-        setText("metric-capitalization-value", money.format(dashboard.totals.capitalization));
-        setText("metric-entry-value", `${dashboard.totals.used} / ${dashboard.event.expectedAttendees}`);
-        setText("entry-allowed", dashboard.totals.paid);
-        setText("entry-blocked", dashboard.totals.void);
-        setText("pending-validation", `${pendingValidation} ventas pendientes de validar`);
-        setSection("tickets", renderTickets(dashboard));
-        setSection("distribution", renderDistribution(dashboard));
-        setSection("evidence", renderEvidence(dashboard));
-      };
-
-      fetch(dashboardUrl, { headers: { Accept: "application/json" } })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(`Dashboard request failed with ${response.status}`);
-          }
-
-          return response.json();
-        })
-        .then((dashboard: RuntimePublicDashboard) => renderDashboard(dashboard))
-        .catch(() => {
-          root?.setAttribute("data-dashboard-status", "fallback");
+        tickets.forEach((ticket, index) => {
+          const drift = Math.sin(time * 0.001 * ticket.speed + ticket.phase);
+          const x = ((ticket.x * width + time * 0.018 * ticket.speed) % (width + 160)) - 80;
+          const y = ticket.y * height + drift * 26;
+          const size = index % 3 === 0 ? 92 : 70;
+          drawTicket(x, y, size, 34, ticket.color, drift * 0.18);
         });
-    };
 
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", initDashboardRefresh, { once: true });
-    } else {
-      initDashboardRefresh();
+        context.fillStyle = "rgba(255,255,255,0.12)";
+        for (let i = 0; i < 110; i += 1) {
+          const x = (i * 67 + time * 0.014) % width;
+          const y = (i * 43) % height;
+          context.beginPath();
+          context.arc(x, y, i % 4 === 0 ? 2.2 : 1.3, 0, Math.PI * 2);
+          context.fill();
+        }
+
+        requestAnimationFrame(draw);
+      };
+
+      resize();
+      window.addEventListener("resize", resize);
+      requestAnimationFrame(draw);
     }
   </script>
 </BaseLayout>

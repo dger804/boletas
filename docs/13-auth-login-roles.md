@@ -60,6 +60,14 @@ Ambas se usan solo como variables de entorno temporales y se eliminan al termina
 
 ## Login
 
+El frontend publica el formulario en:
+
+```txt
+https://boletas.corporacionceer.com/login
+```
+
+La landing publica queda en `/` y enlaza hacia este login. El tablero queda en `/dashboard` y redirige a `/login` cuando no hay token vigente en `sessionStorage`.
+
 ```powershell
 $body = @{
   email = "admin@tu-dominio.com"
@@ -104,7 +112,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Crear pantalla de login en el frontend.
-2. Cambiar pantallas operativas para usar sesion de usuario.
-3. Agregar autorizacion por rol a cada flujo.
+1. Cambiar pantallas operativas para usar endpoints protegidos con sesion de usuario.
+2. Agregar autorizacion por rol a cada flujo.
+3. Implementar cierre de sesion y manejo de expiracion visible.
 4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
