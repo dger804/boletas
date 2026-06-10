@@ -5,9 +5,11 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   Filter,
+  LogOut,
   Plus,
   ScanLine,
   Search,
+  ShieldCheck,
   Ticket,
   Upload,
   UserRoundCheck,
@@ -226,18 +228,74 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
 
 <BaseLayout title="Boletas | Control de evento">
   <script>
+    interface StoredUser {
+      id: string;
+      email: string;
+      name: string;
+      role: "admin" | "seller" | "gate";
+    }
+
+    const clearSession = () => {
+      sessionStorage.removeItem("boletas.auth.token");
+      sessionStorage.removeItem("boletas.auth.expiresAt");
+      sessionStorage.removeItem("boletas.auth.user");
+    };
+
+    const readStoredUser = (): StoredUser | null => {
+      const storedUser = sessionStorage.getItem("boletas.auth.user");
+
+      if (!storedUser) {
+        return null;
+      }
+
+      try {
+        const parsed = JSON.parse(storedUser) as Partial<StoredUser>;
+
+        if (!parsed.email || !parsed.name || !parsed.role) {
+          return null;
+        }
+
+        return parsed as StoredUser;
+      } catch {
+        return null;
+      }
+    };
+
     try {
       const token = sessionStorage.getItem("boletas.auth.token");
       const expiresAt = sessionStorage.getItem("boletas.auth.expiresAt");
       const isExpired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : true;
+      const user = readStoredUser();
 
-      if (!token || isExpired) {
-        sessionStorage.removeItem("boletas.auth.token");
-        sessionStorage.removeItem("boletas.auth.expiresAt");
-        sessionStorage.removeItem("boletas.auth.user");
+      if (!token || isExpired || !user) {
+        clearSession();
         window.location.replace("/login");
+      } else {
+        const activeUser = user;
+
+        document.addEventListener("DOMContentLoaded", () => {
+          document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
+            element.textContent = activeUser.name;
+          });
+
+          document.querySelectorAll("[data-auth-user-email]").forEach((element) => {
+            element.textContent = activeUser.email;
+          });
+
+          document.querySelectorAll("[data-auth-user-role]").forEach((element) => {
+            element.textContent = activeUser.role;
+          });
+
+          document.querySelectorAll("[data-logout-button]").forEach((button) => {
+            button.addEventListener("click", () => {
+              clearSession();
+              window.location.replace("/login");
+            });
+          });
+        });
       }
     } catch {
+      clearSession();
       window.location.replace("/login");
     }
   </script>
@@ -271,9 +329,12 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         </nav>
 
         <div class="mt-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-          <p class="text-xs font-medium text-zinc-500">Subdominio</p>
-          <p class="mt-1 break-all text-sm font-semibold text-zinc-950">
-            boletas.corporacionceer.com
+          <p class="text-xs font-medium text-zinc-500">Sesion</p>
+          <p class="mt-1 truncate text-sm font-semibold text-zinc-950" data-auth-user-name>
+            Usuario
+          </p>
+          <p class="mt-1 truncate text-xs text-zinc-500" data-auth-user-email>
+            usuario@dominio.com
           </p>
         </div>
       </div>
@@ -310,6 +371,26 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
             <button class="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800">
               <Plus size={18} />
               Boleta
+            </button>
+            <div class="flex h-10 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3">
+              <ShieldCheck class="text-emerald-600" size={17} />
+              <div class="hidden leading-tight sm:block">
+                <p class="max-w-36 truncate text-xs font-semibold text-zinc-950" data-auth-user-name>
+                  Usuario
+                </p>
+                <p class="text-[11px] uppercase text-zinc-500" data-auth-user-role>
+                  admin
+                </p>
+              </div>
+            </div>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-logout-button
+              title="Cerrar sesion"
+              type="button"
+            >
+              <LogOut size={17} />
+              Salir
             </button>
           </div>
         </div>

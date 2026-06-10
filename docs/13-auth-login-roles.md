@@ -99,6 +99,20 @@ Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.co
 
 Durante la transicion, los endpoints administrativos siguen aceptando `ADMIN_API_TOKEN`.
 
+## Estado de usuario y cierre de sesion
+
+El dashboard muestra el usuario activo desde `sessionStorage`:
+
+```txt
+boletas.auth.user
+boletas.auth.token
+boletas.auth.expiresAt
+```
+
+El boton `Salir` elimina esos valores y redirige a `/login`.
+
+Esta proteccion mejora la experiencia del frontend, pero la seguridad real debe seguir aplicada en la API con guards y roles.
+
 ## Limpieza de usuarios de prueba
 
 Si se crea un admin con correo temporal para probar el flujo:
@@ -114,5 +128,5 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 1. Cambiar pantallas operativas para usar endpoints protegidos con sesion de usuario.
 2. Agregar autorizacion por rol a cada flujo.
-3. Implementar cierre de sesion y manejo de expiracion visible.
+3. Mejorar manejo visible de expiracion de sesion.
 4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
