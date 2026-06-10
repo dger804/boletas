@@ -29,6 +29,7 @@ import type {
 
 const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
 const publicDashboardUrl = `${apiBase}/public/events/evt_demo/dashboard`;
+const authMeUrl = `${apiBase}/auth/me`;
 
 const fallbackDashboard: PublicEventDashboard = {
   event: {
@@ -227,6 +228,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
 ---
 
 <BaseLayout title="Boletas | Control de evento">
+  <span hidden data-auth-me-url={authMeUrl}></span>
   <script>
     interface StoredUser {
       id: string;
@@ -235,10 +237,43 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       role: "admin" | "seller" | "gate";
     }
 
+    interface AuthMeResponse {
+      user?: StoredUser;
+    }
+
+    const allowedRoles = new Set(["admin", "seller", "gate"]);
+
     const clearSession = () => {
       sessionStorage.removeItem("boletas.auth.token");
       sessionStorage.removeItem("boletas.auth.expiresAt");
       sessionStorage.removeItem("boletas.auth.user");
+    };
+
+    const redirectToLogin = () => {
+      clearSession();
+      window.location.replace("/login");
+    };
+
+    const getAuthMeUrl = () => {
+      const config = document.querySelector<HTMLElement>("[data-auth-me-url]");
+
+      return config?.dataset.authMeUrl ?? null;
+    };
+
+    const isStoredUser = (value: unknown): value is StoredUser => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const user = value as Partial<StoredUser>;
+
+      return (
+        typeof user.id === "string" &&
+        typeof user.email === "string" &&
+        typeof user.name === "string" &&
+        typeof user.role === "string" &&
+        allowedRoles.has(user.role)
+      );
     };
 
     const readStoredUser = (): StoredUser | null => {
@@ -249,54 +284,104 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       }
 
       try {
-        const parsed = JSON.parse(storedUser) as Partial<StoredUser>;
+        const parsed = JSON.parse(storedUser) as unknown;
 
-        if (!parsed.email || !parsed.name || !parsed.role) {
+        if (!isStoredUser(parsed)) {
           return null;
         }
 
-        return parsed as StoredUser;
+        return parsed;
       } catch {
         return null;
       }
     };
 
+    const isExpired = (expiresAt: string | null) => {
+      const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+
+      return !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now();
+    };
+
+    const renderUser = (user: StoredUser) => {
+      document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
+        element.textContent = user.name;
+      });
+
+      document.querySelectorAll("[data-auth-user-email]").forEach((element) => {
+        element.textContent = user.email;
+      });
+
+      document.querySelectorAll("[data-auth-user-role]").forEach((element) => {
+        element.textContent = user.role;
+      });
+    };
+
+    const bindLogout = () => {
+      document.querySelectorAll("[data-logout-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+          clearSession();
+          window.location.replace("/login");
+        });
+      });
+    };
+
+    const whenReady = (callback: () => void) => {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback, { once: true });
+      } else {
+        callback();
+      }
+    };
+
+    const validateSession = async (url: string, token: string) => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Auth session rejected with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as AuthMeResponse;
+
+      if (!isStoredUser(payload.user)) {
+        throw new Error("Auth session response did not include a valid user.");
+      }
+
+      return payload.user;
+    };
+
     try {
+      const authUrl = getAuthMeUrl();
       const token = sessionStorage.getItem("boletas.auth.token");
       const expiresAt = sessionStorage.getItem("boletas.auth.expiresAt");
-      const isExpired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : true;
       const user = readStoredUser();
 
-      if (!token || isExpired || !user) {
-        clearSession();
-        window.location.replace("/login");
+      if (!authUrl || !token || isExpired(expiresAt) || !user) {
+        redirectToLogin();
       } else {
-        const activeUser = user;
+        let activeUser = user;
 
-        document.addEventListener("DOMContentLoaded", () => {
-          document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
-            element.textContent = activeUser.name;
-          });
-
-          document.querySelectorAll("[data-auth-user-email]").forEach((element) => {
-            element.textContent = activeUser.email;
-          });
-
-          document.querySelectorAll("[data-auth-user-role]").forEach((element) => {
-            element.textContent = activeUser.role;
-          });
-
-          document.querySelectorAll("[data-logout-button]").forEach((button) => {
-            button.addEventListener("click", () => {
-              clearSession();
-              window.location.replace("/login");
-            });
-          });
+        whenReady(() => {
+          renderUser(activeUser);
+          bindLogout();
         });
+
+        validateSession(authUrl, token)
+          .then((apiUser) => {
+            activeUser = apiUser;
+            sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
+            renderUser(activeUser);
+          })
+          .catch(() => {
+            redirectToLogin();
+          });
       }
     } catch {
-      clearSession();
-      window.location.replace("/login");
+      redirectToLogin();
     }
   </script>
 

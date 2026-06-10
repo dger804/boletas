@@ -101,7 +101,7 @@ Durante la transicion, los endpoints administrativos siguen aceptando `ADMIN_API
 
 ## Estado de usuario y cierre de sesion
 
-El dashboard muestra el usuario activo desde `sessionStorage`:
+El dashboard usa `sessionStorage` para conservar la sesion recibida desde el login:
 
 ```txt
 boletas.auth.user
@@ -109,7 +109,16 @@ boletas.auth.token
 boletas.auth.expiresAt
 ```
 
-El boton `Salir` elimina esos valores y redirige a `/login`.
+Al abrir `/dashboard`, el frontend valida primero que esos valores existan y que `expiresAt` no este vencido. Luego consulta:
+
+```txt
+GET /api/auth/me
+Authorization: Bearer <token>
+```
+
+Si la API responde correctamente, el dashboard actualiza `boletas.auth.user` con el usuario real devuelto por el backend. Si la API rechaza el token, no responde con un usuario valido o la sesion local esta vencida, el frontend elimina esos valores y redirige a `/login`.
+
+El boton `Salir` tambien elimina esos valores y redirige a `/login`.
 
 Esta proteccion mejora la experiencia del frontend, pero la seguridad real debe seguir aplicada en la API con guards y roles.
 
