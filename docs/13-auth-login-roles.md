@@ -117,7 +117,24 @@ Durante la transicion, los endpoints administrativos siguen aceptando `ADMIN_API
 
 ## Administrar usuarios
 
-Los usuarios `admin` pueden listar, crear y actualizar cuentas desde la API:
+Los usuarios `admin` pueden administrar cuentas desde el frontend:
+
+```txt
+https://boletas.corporacionceer.com/users
+```
+
+La pantalla permite:
+
+```txt
+crear usuarios
+editar nombre y correo
+cambiar rol
+cambiar estado
+```
+
+El propio frontend valida `/api/auth/me`; si el usuario autenticado no es `admin`, redirige a `/dashboard`.
+
+La API que respalda esta pantalla es:
 
 ```txt
 GET   /api/auth/users
@@ -203,7 +220,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 ## Pendientes
 
 1. Cambiar pantallas operativas para usar endpoints protegidos con sesion de usuario.
-2. Crear pantalla web para administrar usuarios sin usar llamadas manuales.
-3. Agregar autorizacion por rol a cada flujo operativo.
+2. Agregar autorizacion por rol a cada flujo operativo.
+3. Agregar cambio de contrasena desde la pantalla de usuarios.
 4. Mejorar manejo visible de expiracion de sesion.
 5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.

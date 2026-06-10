@@ -1,0 +1,739 @@
+---
+import {
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  Ticket,
+  UserPlus,
+  UsersRound
+} from "lucide-astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
+const authMeUrl = `${apiBase}/auth/me`;
+const usersUrl = `${apiBase}/auth/users`;
+---
+
+<BaseLayout title="Usuarios | Boletas">
+  <span hidden data-auth-me-url={authMeUrl} data-users-url={usersUrl}></span>
+  <script>
+    type UserRole = "regular" | "supervisor" | "admin";
+    type UserStatus = "active" | "disabled";
+
+    interface StoredUser {
+      id: string;
+      email: string;
+      name: string;
+      role: UserRole;
+    }
+
+    interface ManagedUser extends StoredUser {
+      status: UserStatus;
+      lastLoginAt?: string;
+      createdAt: string;
+      updatedAt: string;
+    }
+
+    interface AuthMeResponse {
+      user?: StoredUser;
+    }
+
+    interface UsersResponse {
+      users?: ManagedUser[];
+    }
+
+    const allowedRoles = new Set(["regular", "supervisor", "admin"]);
+    const allowedStatuses = new Set(["active", "disabled"]);
+    const roleLabels: Record<UserRole, string> = {
+      admin: "Admin",
+      regular: "Regular",
+      supervisor: "Supervisor"
+    };
+    const statusLabels: Record<UserStatus, string> = {
+      active: "Activo",
+      disabled: "Deshabilitado"
+    };
+
+    let currentUser: StoredUser | null = null;
+    let authToken = "";
+
+    const clearSession = () => {
+      sessionStorage.removeItem("boletas.auth.token");
+      sessionStorage.removeItem("boletas.auth.expiresAt");
+      sessionStorage.removeItem("boletas.auth.user");
+    };
+
+    const redirectToLogin = () => {
+      clearSession();
+      window.location.replace("/login");
+    };
+
+    const getConfig = () => {
+      const config = document.querySelector<HTMLElement>("[data-auth-me-url]");
+
+      return {
+        authMeUrl: config?.dataset.authMeUrl ?? null,
+        usersUrl: config?.dataset.usersUrl ?? null
+      };
+    };
+
+    const isStoredUser = (value: unknown): value is StoredUser => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const user = value as Partial<StoredUser>;
+
+      return (
+        typeof user.id === "string" &&
+        typeof user.email === "string" &&
+        typeof user.name === "string" &&
+        typeof user.role === "string" &&
+        allowedRoles.has(user.role)
+      );
+    };
+
+    const isManagedUser = (value: unknown): value is ManagedUser => {
+      if (!isStoredUser(value)) {
+        return false;
+      }
+
+      const user = value as Partial<ManagedUser>;
+
+      return (
+        typeof user.status === "string" &&
+        allowedStatuses.has(user.status) &&
+        typeof user.createdAt === "string" &&
+        typeof user.updatedAt === "string"
+      );
+    };
+
+    const readStoredUser = (): StoredUser | null => {
+      const storedUser = sessionStorage.getItem("boletas.auth.user");
+
+      if (!storedUser) {
+        return null;
+      }
+
+      try {
+        const parsed = JSON.parse(storedUser) as unknown;
+
+        return isStoredUser(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const isExpired = (expiresAt: string | null) => {
+      const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+
+      return !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now();
+    };
+
+    const whenReady = (callback: () => void) => {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback, { once: true });
+      } else {
+        callback();
+      }
+    };
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    const renderUser = (user: StoredUser) => {
+      document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
+        element.textContent = user.name;
+      });
+
+      document.querySelectorAll("[data-auth-user-email]").forEach((element) => {
+        element.textContent = user.email;
+      });
+
+      document.querySelectorAll("[data-auth-user-role]").forEach((element) => {
+        element.textContent = roleLabels[user.role];
+      });
+    };
+
+    const bindLogout = () => {
+      document.querySelectorAll("[data-logout-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+          clearSession();
+          window.location.replace("/login");
+        });
+      });
+    };
+
+    const setStatus = (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
+      const element = document.querySelector<HTMLElement>("[data-users-status]");
+
+      if (!element) {
+        return;
+      }
+
+      const toneClasses = {
+        error: "border-rose-200 bg-rose-50 text-rose-700",
+        neutral: "border-zinc-200 bg-white text-zinc-600",
+        success: "border-emerald-200 bg-emerald-50 text-emerald-700"
+      };
+
+      element.className = `rounded-md border px-3 py-2 text-sm ${toneClasses[tone]}`;
+      element.textContent = message;
+      element.classList.remove("hidden");
+    };
+
+    const validateSession = async (url: string, token: string) => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Auth session rejected with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as AuthMeResponse;
+
+      if (!isStoredUser(payload.user)) {
+        throw new Error("Auth session response did not include a valid user.");
+      }
+
+      return payload.user;
+    };
+
+    const requestJson = async <T,>(url: string, options: RequestInit = {}) => {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${authToken}`,
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...options.headers
+        }
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        redirectToLogin();
+      }
+
+      if (!response.ok) {
+        let message = `Solicitud rechazada con estado ${response.status}.`;
+
+        try {
+          const payload = (await response.json()) as { message?: string };
+
+          if (payload.message) {
+            message = payload.message;
+          }
+        } catch {
+          // Keep the generic message.
+        }
+
+        throw new Error(message);
+      }
+
+      return (await response.json()) as T;
+    };
+
+    const formatDate = (value?: string) => {
+      if (!value) {
+        return "Sin registro";
+      }
+
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "Sin registro";
+      }
+
+      return new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(date);
+    };
+
+    const renderRoleOptions = (selectedRole: UserRole) =>
+      (["regular", "supervisor", "admin"] as const)
+        .map(
+          (role) =>
+            `<option value="${role}"${role === selectedRole ? " selected" : ""}>${roleLabels[role]}</option>`
+        )
+        .join("");
+
+    const renderStatusOptions = (selectedStatus: UserStatus) =>
+      (["active", "disabled"] as const)
+        .map(
+          (status) =>
+            `<option value="${status}"${status === selectedStatus ? " selected" : ""}>${statusLabels[status]}</option>`
+        )
+        .join("");
+
+    const renderUsers = (users: ManagedUser[]) => {
+      const body = document.querySelector<HTMLElement>("[data-users-body]");
+      const count = document.querySelector<HTMLElement>("[data-users-count]");
+
+      if (count) {
+        count.textContent = `${users.length}`;
+      }
+
+      if (!body) {
+        return;
+      }
+
+      if (users.length === 0) {
+        body.innerHTML = `
+          <tr>
+            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="6">
+              Sin usuarios registrados
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      body.innerHTML = users
+        .map((user) => {
+          const isCurrentUser = currentUser?.id === user.id;
+          const disabledRoleState = isCurrentUser ? " disabled" : "";
+          const disabledStatusState = isCurrentUser ? " disabled" : "";
+          const statusClass =
+            user.status === "active"
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-zinc-100 text-zinc-600";
+
+          return `
+            <tr class="align-top hover:bg-zinc-50" data-user-row="${escapeHtml(user.id)}">
+              <td class="min-w-64 px-4 py-3">
+                <input
+                  class="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-950 outline-none focus:border-zinc-500"
+                  data-user-field="name"
+                  value="${escapeHtml(user.name)}"
+                />
+                <input
+                  class="mt-2 h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none focus:border-zinc-500"
+                  data-user-field="email"
+                  type="email"
+                  value="${escapeHtml(user.email)}"
+                />
+                ${isCurrentUser ? `<span class="mt-2 inline-flex rounded-md bg-zinc-950 px-2 py-1 text-xs font-medium text-white">Sesion actual</span>` : ""}
+              </td>
+              <td class="px-4 py-3">
+                <select
+                  class="h-9 w-36 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700 outline-none focus:border-zinc-500 disabled:bg-zinc-100"
+                  data-user-field="role"
+                  ${disabledRoleState}
+                >
+                  ${renderRoleOptions(user.role)}
+                </select>
+              </td>
+              <td class="px-4 py-3">
+                <select
+                  class="h-9 w-40 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700 outline-none focus:border-zinc-500 disabled:bg-zinc-100"
+                  data-user-field="status"
+                  ${disabledStatusState}
+                >
+                  ${renderStatusOptions(user.status)}
+                </select>
+                <span class="mt-2 inline-flex rounded-md px-2 py-1 text-xs font-medium ${statusClass}">
+                  ${statusLabels[user.status]}
+                </span>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(formatDate(user.lastLoginAt))}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(formatDate(user.updatedAt))}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  class="inline-flex h-9 items-center rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-save-user
+                  type="button"
+                >
+                  Guardar
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+    };
+
+    const loadUsers = async () => {
+      const { usersUrl } = getConfig();
+
+      if (!usersUrl) {
+        setStatus("No se encontro la ruta de usuarios.", "error");
+        return;
+      }
+
+      setStatus("Cargando usuarios.");
+
+      try {
+        const payload = await requestJson<UsersResponse>(usersUrl);
+        const users = Array.isArray(payload.users)
+          ? payload.users.filter(isManagedUser)
+          : [];
+
+        renderUsers(users);
+        setStatus("Usuarios actualizados.", "success");
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible cargar usuarios.",
+          "error"
+        );
+      }
+    };
+
+    const bindCreateForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-create-user-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { usersUrl } = getConfig();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!usersUrl) {
+          setStatus("No se encontro la ruta de usuarios.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const payload = {
+          email: String(formData.get("email") ?? "").trim(),
+          name: String(formData.get("name") ?? "").trim(),
+          password: String(formData.get("password") ?? ""),
+          role: String(formData.get("role") ?? "regular"),
+          status: String(formData.get("status") ?? "active")
+        };
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<ManagedUser>(usersUrl, {
+            body: JSON.stringify(payload),
+            method: "POST"
+          });
+          form.reset();
+          setStatus("Usuario creado.", "success");
+          await loadUsers();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible crear el usuario.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+        }
+      });
+    };
+
+    const bindUserActions = () => {
+      document.querySelector("[data-refresh-users]")?.addEventListener("click", () => {
+        void loadUsers();
+      });
+
+      document.querySelector("[data-users-body]")?.addEventListener("click", async (event) => {
+        const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-save-user]");
+
+        if (!button) {
+          return;
+        }
+
+        const { usersUrl } = getConfig();
+        const row = button.closest<HTMLElement>("[data-user-row]");
+        const userId = row?.dataset.userRow;
+
+        if (!usersUrl || !row || !userId) {
+          setStatus("No se encontro el usuario seleccionado.", "error");
+          return;
+        }
+
+        const field = (name: string) =>
+          row.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-user-field="${name}"]`)?.value ?? "";
+        const payload = {
+          email: field("email").trim(),
+          name: field("name").trim(),
+          role: field("role"),
+          status: field("status")
+        };
+
+        button.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<ManagedUser>(`${usersUrl}/${encodeURIComponent(userId)}`, {
+            body: JSON.stringify(payload),
+            method: "PATCH"
+          });
+          setStatus("Usuario actualizado.", "success");
+          await loadUsers();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible actualizar el usuario.",
+            "error"
+          );
+        } finally {
+          button.removeAttribute("disabled");
+        }
+      });
+    };
+
+    try {
+      const { authMeUrl } = getConfig();
+      const token = sessionStorage.getItem("boletas.auth.token");
+      const expiresAt = sessionStorage.getItem("boletas.auth.expiresAt");
+      const user = readStoredUser();
+
+      if (!authMeUrl || !token || isExpired(expiresAt) || !user) {
+        redirectToLogin();
+      } else {
+        authToken = token;
+        currentUser = user;
+
+        whenReady(() => {
+          renderUser(user);
+          bindLogout();
+          bindCreateForm();
+          bindUserActions();
+        });
+
+        validateSession(authMeUrl, token)
+          .then((apiUser) => {
+            currentUser = apiUser;
+            sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
+            renderUser(apiUser);
+
+            if (apiUser.role !== "admin") {
+              window.location.replace("/dashboard");
+              return;
+            }
+
+            void loadUsers();
+          })
+          .catch(() => {
+            redirectToLogin();
+          });
+      }
+    } catch {
+      redirectToLogin();
+    }
+  </script>
+
+  <div class="grid min-h-screen lg:grid-cols-[240px_1fr]">
+    <aside class="border-b border-zinc-200 bg-white px-4 py-4 lg:border-b-0 lg:border-r">
+      <div class="flex h-full flex-col gap-6">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+            <Ticket size={20} />
+          </span>
+          <div>
+            <p class="text-sm font-semibold text-zinc-950">Boletas</p>
+            <p class="text-xs text-zinc-500">Administracion</p>
+          </div>
+        </div>
+
+        <nav class="grid gap-1 text-sm">
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/dashboard">
+            Tablero
+          </a>
+          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/users">
+            Usuarios
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
+            Eventos
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
+            Boletas
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
+            Pagos
+          </a>
+        </nav>
+
+        <div class="mt-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <p class="text-xs font-medium text-zinc-500">Sesion</p>
+          <p class="mt-1 truncate text-sm font-semibold text-zinc-950" data-auth-user-name>
+            Usuario
+          </p>
+          <p class="mt-1 truncate text-xs text-zinc-500" data-auth-user-email>
+            usuario@dominio.com
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="min-w-0">
+      <header class="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6">
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-xs font-medium text-zinc-500">
+              <UsersRound size={14} />
+              <span>Control de acceso</span>
+            </div>
+            <h1 class="mt-2 text-2xl font-semibold text-zinc-950">
+              Usuarios
+            </h1>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-refresh-users
+              title="Actualizar"
+              type="button"
+            >
+              <RefreshCw size={17} />
+              Actualizar
+            </button>
+            <div class="flex h-10 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3">
+              <ShieldCheck class="text-emerald-600" size={17} />
+              <div class="hidden leading-tight sm:block">
+                <p class="max-w-36 truncate text-xs font-semibold text-zinc-950" data-auth-user-name>
+                  Usuario
+                </p>
+                <p class="text-[11px] uppercase text-zinc-500" data-auth-user-role>
+                  Admin
+                </p>
+              </div>
+            </div>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-logout-button
+              title="Cerrar sesion"
+              type="button"
+            >
+              <LogOut size={17} />
+              Salir
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="space-y-6 p-4 sm:p-6">
+        <p class="hidden rounded-md border px-3 py-2 text-sm" data-users-status></p>
+
+        <section class="grid gap-6 xl:grid-cols-[360px_1fr]">
+          <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
+                <UserPlus size={18} />
+              </span>
+              <div>
+                <h2 class="text-sm font-semibold text-zinc-950">Nuevo usuario</h2>
+                <p class="mt-1 text-xs text-zinc-500">Cuenta operativa</p>
+              </div>
+            </div>
+
+            <form class="mt-5 grid gap-4" data-create-user-form>
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Nombre</span>
+                <input
+                  class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  name="name"
+                  required
+                  type="text"
+                />
+              </label>
+
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Correo</span>
+                <input
+                  autocomplete="email"
+                  class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  name="email"
+                  required
+                  type="email"
+                />
+              </label>
+
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Contrasena temporal</span>
+                <input
+                  autocomplete="new-password"
+                  class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  minlength="8"
+                  name="password"
+                  required
+                  type="password"
+                />
+              </label>
+
+              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Rol</span>
+                  <select
+                    class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
+                    name="role"
+                  >
+                    <option value="regular">Regular</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Estado</span>
+                  <select
+                    class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
+                    name="status"
+                  >
+                    <option value="active">Activo</option>
+                    <option value="disabled">Deshabilitado</option>
+                  </select>
+                </label>
+              </div>
+
+              <button
+                class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                type="submit"
+              >
+                Crear usuario
+              </button>
+            </form>
+          </section>
+
+          <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 class="text-sm font-semibold text-zinc-950">Cuentas</h2>
+                <p class="mt-1 text-xs text-zinc-500">
+                  <span data-users-count>0</span> registradas
+                </p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-zinc-100 text-left">
+                <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Usuario</th>
+                    <th class="px-4 py-3 font-medium">Rol</th>
+                    <th class="px-4 py-3 font-medium">Estado</th>
+                    <th class="px-4 py-3 font-medium">Ultimo ingreso</th>
+                    <th class="px-4 py-3 font-medium">Actualizado</th>
+                    <th class="px-4 py-3 text-right font-medium">Accion</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100 bg-white" data-users-body>
+                  <tr>
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="6">
+                      Cargando usuarios
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
