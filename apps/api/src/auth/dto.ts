@@ -1,5 +1,15 @@
-import { USER_ROLES, USER_STATUSES } from "@boletas/shared";
+import type { UserRole, UserStatus } from "@boletas/shared";
 import { IsEmail, IsIn, IsOptional, IsString, MinLength } from "class-validator";
+
+const USER_ROLES = [
+  "regular",
+  "supervisor",
+  "admin"
+] as const satisfies readonly UserRole[];
+const USER_STATUSES = [
+  "active",
+  "disabled"
+] as const satisfies readonly UserStatus[];
 
 export class LoginDto {
   @IsEmail()

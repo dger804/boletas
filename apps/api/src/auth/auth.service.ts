@@ -5,11 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { AppUser } from "@prisma/client";
-import {
-  USER_ROLES,
-  type AuthenticatedUser,
-  type LoginResponse
-} from "@boletas/shared";
+import type { AuthenticatedUser, LoginResponse } from "@boletas/shared";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { PrismaService } from "../database/prisma.service";
 import { verifyPassword } from "./passwords";
@@ -20,6 +16,11 @@ interface TokenPayload extends AuthenticatedUser {
 }
 
 const DEFAULT_TOKEN_TTL_SECONDS = 60 * 60 * 8;
+const USER_ROLES = [
+  "regular",
+  "supervisor",
+  "admin"
+] as const satisfies readonly AuthenticatedUser["role"][];
 
 @Injectable()
 export class AuthService {
