@@ -78,6 +78,20 @@ pnpm dev:api
 
 Este comando ejecuta `src/main.ts` con `ts-node` y `node --watch`, por lo que no necesita que exista `apps/api/dist`. Si aparece un error como `Cannot find module ... apps/api/dist/main`, revisa que tengas la version actual del script `dev` en `apps/api/package.json`.
 
+Si aparece `EADDRINUSE: address already in use 0.0.0.0:3000`, ya hay otra API local usando el puerto `3000`. Cierra la terminal anterior con `Ctrl+C` o identifica el proceso:
+
+```powershell
+Get-NetTCPConnection -LocalPort 3000 -State Listen
+```
+
+Luego detén solo ese proceso:
+
+```powershell
+Stop-Process -Id <OwningProcess> -Force
+```
+
+Evita ejecutar `pnpm dev` y `pnpm dev:api` al mismo tiempo, porque ambos intentan levantar la API.
+
 Para poder iniciar sesion en `http://localhost:4321/login`, deben cumplirse estas dos cosas:
 
 1. `http://localhost:3000/api/health` responde.
