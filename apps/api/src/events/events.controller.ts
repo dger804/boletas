@@ -25,10 +25,16 @@ export class EventsController {
     return this.store.createEvent(body);
   }
 
-  @Roles("regular", "supervisor", "admin")
+  @Roles("supervisor", "admin")
   @Get(":eventId/dashboard")
   getDashboard(@Param("eventId") eventId: string) {
     return this.store.getEventDashboard(eventId);
+  }
+
+  @Roles("regular", "supervisor", "admin")
+  @Get(":eventId/summary")
+  getSummary(@Param("eventId") eventId: string) {
+    return this.store.getPublicEventDashboard(eventId);
   }
 
   @Roles("supervisor", "admin")

@@ -18,12 +18,13 @@ Politica inicial por endpoint operativo:
 
 ```txt
 regular
-- leer eventos, tablero protegido y boletas
+- leer eventos, tablero resumido protegido y boletas
 - registrar venta
 - registrar ingreso/check-in
 
 supervisor
 - todo lo de regular
+- leer tablero completo del evento
 - crear distribuidores
 - asignar boletas
 - listar y validar pagos
@@ -143,7 +144,8 @@ Los endpoints de eventos, boletas y pagos usan la sesion vigente para aplicar pe
 ```txt
 GET   /api/events                         regular, supervisor, admin
 POST  /api/events                         admin
-GET   /api/events/:eventId/dashboard      regular, supervisor, admin
+GET   /api/events/:eventId/summary        regular, supervisor, admin
+GET   /api/events/:eventId/dashboard      supervisor, admin
 POST  /api/events/:eventId/distributors   supervisor, admin
 POST  /api/events/:eventId/tickets/batch  admin
 
@@ -161,6 +163,8 @@ La ruta publica sanitizada sigue sin sesion:
 ```txt
 GET /api/public/events/:eventId/dashboard
 ```
+
+El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/summary` con el token guardado en `sessionStorage`. Esa ruta devuelve el mismo contrato sanitizado que la ruta publica, por lo que no expone compradores, telefonos, referencias ni URLs de evidencia a usuarios `regular`.
 
 ## Administrar usuarios
 
@@ -274,8 +278,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Cambiar pantallas operativas para usar endpoints protegidos con sesion de usuario.
-2. Conectar vistas operativas reales a los endpoints con rol.
-3. Agregar cambio de contrasena desde la pantalla de usuarios.
-4. Mejorar manejo visible de expiracion de sesion.
-5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Conectar vistas operativas reales a los endpoints con rol.
+2. Agregar cambio de contrasena desde la pantalla de usuarios.
+3. Mejorar manejo visible de expiracion de sesion.
+4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.

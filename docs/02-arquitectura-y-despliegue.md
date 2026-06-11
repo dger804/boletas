@@ -114,14 +114,17 @@ La primera base de login y roles ya existe. Usa usuarios en MySQL, tokens firmad
 
 Los datos demo persistentes se cargan con `pnpm db:seed` y requieren `DATABASE_URL` en el entorno de ejecucion. Ver `docs/12-seed-demo-prisma.md`.
 
-El frontend estatico no debe usar `ADMIN_API_TOKEN`. Para mostrar el tablero sin exponer datos operativos, la API publica un resumen sanitizado:
+El frontend estatico no debe usar `ADMIN_API_TOKEN`. Para mostrar el tablero interno sin exponer datos operativos completos, la API publica un resumen sanitizado protegido por sesion:
 
 ```txt
+GET /api/events/:eventId/summary
 GET /api/public/events/:eventId/dashboard
 ```
 
-Ese endpoint devuelve metricas agregadas, muestras anonimizadas y pagos recientes sin compradores, telefonos, referencias de transferencia ni URLs de evidencia. Las acciones que crean o modifican datos siguen en endpoints protegidos.
+`/api/events/:eventId/summary` es el que consume `/dashboard` con `Authorization: Bearer <token>`. `/api/public/events/:eventId/dashboard` conserva el mismo contrato sanitizado para lecturas publicas sin sesion.
+
+Estos endpoints devuelven metricas agregadas, muestras anonimizadas y pagos recientes sin compradores, telefonos, referencias de transferencia ni URLs de evidencia. Las acciones que crean o modifican datos siguen en endpoints protegidos. El dashboard completo `GET /api/events/:eventId/dashboard` queda reservado para `supervisor` y `admin`.
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
-La siguiente decision tecnica es mover las acciones operativas reales al token de sesion y aplicar autorizacion por rol en cada flujo.
+La siguiente decision tecnica es conectar las acciones operativas reales al token de sesion y completar las pantallas de eventos, boletas, pagos y entrada.

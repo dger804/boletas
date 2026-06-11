@@ -28,7 +28,7 @@ import type {
 } from "@boletas/shared";
 
 const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
-const publicDashboardUrl = `${apiBase}/public/events/evt_demo/dashboard`;
+const dashboardSummaryUrl = `${apiBase}/events/evt_demo/summary`;
 const authMeUrl = `${apiBase}/auth/me`;
 
 const fallbackDashboard: PublicEventDashboard = {
@@ -403,7 +403,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
     }
   </script>
 
-  <div class="grid min-h-screen lg:grid-cols-[240px_1fr]" data-dashboard-root data-dashboard-url={publicDashboardUrl}>
+  <div class="grid min-h-screen lg:grid-cols-[240px_1fr]" data-dashboard-root data-dashboard-url={dashboardSummaryUrl}>
     <aside class="border-b border-zinc-200 bg-white px-4 py-4 lg:border-b-0 lg:border-r">
       <div class="flex h-full flex-col gap-6">
         <div class="flex items-center gap-3">
@@ -423,7 +423,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
           <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-admin-only href="/users">
             Usuarios
           </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href={publicDashboardUrl}>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
             Eventos
           </a>
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
@@ -640,6 +640,13 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       if (!dashboardUrl) {
         return;
       }
+
+      const redirectToLogin = () => {
+        sessionStorage.removeItem("boletas.auth.token");
+        sessionStorage.removeItem("boletas.auth.expiresAt");
+        sessionStorage.removeItem("boletas.auth.user");
+        window.location.replace("/login");
+      };
 
       const money = new Intl.NumberFormat("es-CO", {
         currency: "COP",
@@ -861,8 +868,25 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         setSection("evidence", renderEvidence(dashboard));
       };
 
-      fetch(dashboardUrl, { headers: { Accept: "application/json" } })
+      const token = sessionStorage.getItem("boletas.auth.token");
+
+      if (!token) {
+        redirectToLogin();
+        return;
+      }
+
+      fetch(dashboardUrl, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      })
         .then((response) => {
+          if (response.status === 401 || response.status === 403) {
+            redirectToLogin();
+            throw new Error(`Dashboard session rejected with ${response.status}`);
+          }
+
           if (!response.ok) {
             throw new Error(`Dashboard request failed with ${response.status}`);
           }

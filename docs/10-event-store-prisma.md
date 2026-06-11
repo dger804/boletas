@@ -40,6 +40,7 @@ El contrato HTTP no cambia. Los controladores siguen exponiendo:
 ```txt
 GET    /api/events
 POST   /api/events
+GET    /api/events/:eventId/summary
 GET    /api/events/:eventId/dashboard
 POST   /api/events/:eventId/distributors
 POST   /api/events/:eventId/tickets/batch
@@ -51,13 +52,16 @@ GET    /api/payments
 PATCH  /api/payments/:paymentId/verify
 ```
 
-Tambien existe un endpoint publico de solo lectura para el dashboard del frontend estatico:
+Tambien existen endpoints de solo lectura para el dashboard estatico:
 
 ```txt
+GET /api/events/:eventId/summary
 GET /api/public/events/:eventId/dashboard
 ```
 
-Este endpoint no requiere `ADMIN_API_TOKEN` porque no devuelve datos sensibles. Su salida esta sanitizada:
+`/api/events/:eventId/summary` requiere sesion de usuario y es el endpoint que usa el dashboard interno. `/api/public/events/:eventId/dashboard` no requiere sesion y se mantiene para lecturas publicas sanitizadas.
+
+Ambos devuelven una salida sanitizada:
 
 - no incluye nombres de compradores;
 - no incluye telefonos;
@@ -65,9 +69,9 @@ Este endpoint no requiere `ADMIN_API_TOKEN` porque no devuelve datos sensibles. 
 - no incluye referencias bancarias;
 - no incluye `evidenceUrl`.
 
-Las operaciones administrativas y los listados completos siguen protegidos.
+El endpoint completo `GET /api/events/:eventId/dashboard` queda protegido para `supervisor` y `admin` porque puede incluir datos operativos completos.
 
-El frontend estatico renderiza un fallback y luego refresca este endpoint desde el navegador. Esto evita publicar `ADMIN_API_TOKEN` y evita que el dashboard quede congelado con datos del momento del build.
+El frontend estatico renderiza un fallback y luego refresca el endpoint protegido `summary` desde el navegador con `Authorization: Bearer <token>`. Esto evita publicar `ADMIN_API_TOKEN` y evita que el dashboard quede congelado con datos del momento del build.
 
 ## Fallback local
 
@@ -90,6 +94,7 @@ Despues del deploy se puede validar:
 ```txt
 https://api-boletas.corporacionceer.com/api/health/db
 https://api-boletas.corporacionceer.com/api/events
+https://api-boletas.corporacionceer.com/api/events/evt_demo/summary
 https://api-boletas.corporacionceer.com/api/public/events/evt_demo/dashboard
 ```
 
