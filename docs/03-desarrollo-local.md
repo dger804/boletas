@@ -96,8 +96,25 @@ Para poder iniciar sesion en `http://localhost:4321/login`, deben cumplirse esta
 
 1. `http://localhost:3000/api/health` responde.
 2. `DATABASE_URL` apunta a una base que tenga usuarios en `app_users`.
+3. `http://localhost:3000/api/health/db` responde con `status: "ok"`.
 
 Si ejecutas solo `pnpm dev:web`, el login no funcionara porque el frontend intentara llamar a la API y NestJS no estara corriendo. Cuando navegas en `localhost` y falta `PUBLIC_API_BASE_URL`, el frontend convierte `/api` a `http://localhost:3000/api` para evitar pegarle por error al servidor de Astro.
+
+Si `/api/health` responde pero `/api/health/db` devuelve `503`, la API local esta viva pero no puede conectarse a MySQL. En ese caso revisa conectividad al host de Hostinger:
+
+```powershell
+Test-NetConnection -ComputerName srv565.hstgr.io -Port 3306
+```
+
+Si `TcpTestSucceeded` es `False`, el problema ocurre antes de usuario y contrasena. Revisa en Hostinger `MySQL remoto`, agrega tu IP publica actual o confirma que la base acepte `%`, y prueba desde otra red si tu red actual bloquea conexiones salientes al puerto `3306`.
+
+Como alternativa temporal para trabajar solo el frontend, puedes apuntar el navegador local a la API desplegada:
+
+```txt
+PUBLIC_API_BASE_URL=https://api-boletas.corporacionceer.com/api
+```
+
+En ese modo ejecuta solo `pnpm dev:web` para no depender de la conexion MySQL desde tu equipo.
 
 ## 5. Validar antes de commitear
 
