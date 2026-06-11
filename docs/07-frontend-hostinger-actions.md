@@ -143,6 +143,8 @@ https://boletas.corporacionceer.com
 
 El workflow usa `protocol: ftps` y `port: 21`.
 
+El paso de despliegue configura `timeout: 120000` para dar hasta 120 segundos a las operaciones FTP. Esto reduce falsos fallos por `Timeout (control socket)` cuando Hostinger o la red de GitHub tardan mas de lo normal en abrir la conexion.
+
 Si Hostinger rechaza FTPS, cambiar temporalmente el workflow a:
 
 ```yaml

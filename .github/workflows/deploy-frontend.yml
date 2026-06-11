@@ -79,3 +79,4 @@ jobs:
           local-dir: ./apps/web/dist/
           server-dir: ${{ secrets.HOSTINGER_FTP_SERVER_DIR }}
           log-level: minimal
+          timeout: 120000
