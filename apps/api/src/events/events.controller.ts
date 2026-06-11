@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
-import { AdminTokenGuard } from "../auth/admin-token.guard";
+import { Roles } from "../auth/roles.decorator";
+import { RolesGuard } from "../auth/roles.guard";
 import {
   CreateDistributorDto,
   CreateEventDto,
@@ -8,25 +9,29 @@ import {
 import { EventStoreService } from "./event-store.service";
 
 @Controller("events")
-@UseGuards(AdminTokenGuard)
+@UseGuards(RolesGuard)
 export class EventsController {
   constructor(private readonly store: EventStoreService) {}
 
+  @Roles("regular", "supervisor", "admin")
   @Get()
   listEvents() {
     return this.store.listEvents();
   }
 
+  @Roles("admin")
   @Post()
   createEvent(@Body() body: CreateEventDto) {
     return this.store.createEvent(body);
   }
 
+  @Roles("regular", "supervisor", "admin")
   @Get(":eventId/dashboard")
   getDashboard(@Param("eventId") eventId: string) {
     return this.store.getEventDashboard(eventId);
   }
 
+  @Roles("supervisor", "admin")
   @Post(":eventId/distributors")
   addDistributor(
     @Param("eventId") eventId: string,
@@ -35,6 +40,7 @@ export class EventsController {
     return this.store.addDistributor(eventId, body);
   }
 
+  @Roles("admin")
   @Post(":eventId/tickets/batch")
   createTicketBatch(
     @Param("eventId") eventId: string,

@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { AdminTokenGuard } from "../auth/admin-token.guard";
 import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../database/database.module";
 import { EventStoreService } from "./event-store.service";
@@ -16,6 +15,6 @@ import { TicketsController } from "./tickets.controller";
     PaymentsController,
     PublicEventsController
   ],
-  providers: [AdminTokenGuard, EventStoreService]
+  providers: [EventStoreService]
 })
 export class EventsModule {}

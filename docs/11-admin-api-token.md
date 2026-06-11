@@ -25,7 +25,7 @@ El token se exige en:
 /api/payments
 ```
 
-Incluye lectura y escritura porque estos endpoints pueden exponer o modificar datos persistentes.
+Incluye lectura y escritura porque estos endpoints pueden exponer o modificar datos persistentes. Desde la autorizacion por roles, una sesion de usuario tambien puede llamar estos endpoints cuando su rol lo permite. El token temporal se interpreta como rol `admin`.
 
 La ruta de salud sigue publica:
 
@@ -52,11 +52,12 @@ curl -H "Authorization: Bearer TU_TOKEN" https://api-boletas.corporacionceer.com
 
 En produccion:
 
-- Si `ADMIN_API_TOKEN` no existe, los endpoints protegidos responden `503`.
-- Si el token es incorrecto o falta, responden `401`.
-- Si el token es correcto, la peticion continua.
+- Si se usa una sesion de usuario valida, el permiso depende del rol.
+- Si se usa `ADMIN_API_TOKEN` correcto, la peticion continua como rol `admin`.
+- Si falta sesion/token, responden `401`.
+- Si la sesion existe pero el rol no alcanza, responden `403`.
 
-En desarrollo local sin `ADMIN_API_TOKEN`, el guard permite continuar para no bloquear el aprendizaje ni los tests iniciales.
+En desarrollo local, los endpoints operativos nuevos deben probarse con una sesion real. El bypass sin `ADMIN_API_TOKEN` queda limitado a piezas antiguas de transicion y no debe usarse como comportamiento esperado.
 
 ## Limite de esta solucion
 

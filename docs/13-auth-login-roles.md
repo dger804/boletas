@@ -14,7 +14,28 @@ supervisor -> usuario intermedio para supervision y validaciones futuras
 admin      -> administra eventos, usuarios, boletas, distribuidores y pagos
 ```
 
-En este corte, solo `admin` puede reemplazar al `ADMIN_API_TOKEN` en endpoints protegidos y administrar usuarios.
+Politica inicial por endpoint operativo:
+
+```txt
+regular
+- leer eventos, tablero protegido y boletas
+- registrar venta
+- registrar ingreso/check-in
+
+supervisor
+- todo lo de regular
+- crear distribuidores
+- asignar boletas
+- listar y validar pagos
+
+admin
+- todo lo de supervisor
+- crear eventos
+- crear lotes de boletas
+- administrar usuarios
+```
+
+`ADMIN_API_TOKEN` se conserva como puente temporal y se trata como rol `admin` solo en endpoints operativos donde `admin` esta permitido. Para administrar usuarios desde la UI se debe usar una sesion real de usuario `admin`.
 
 ## Variables en Render
 
@@ -113,7 +134,33 @@ $headers = @{ Authorization = "Bearer TU_TOKEN_DE_LOGIN" }
 Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.com/api/events"
 ```
 
-Durante la transicion, los endpoints administrativos siguen aceptando `ADMIN_API_TOKEN`.
+Durante la transicion, los endpoints operativos siguen aceptando `ADMIN_API_TOKEN` como rol `admin`.
+
+## Autorizacion operativa por rol
+
+Los endpoints de eventos, boletas y pagos usan la sesion vigente para aplicar permisos:
+
+```txt
+GET   /api/events                         regular, supervisor, admin
+POST  /api/events                         admin
+GET   /api/events/:eventId/dashboard      regular, supervisor, admin
+POST  /api/events/:eventId/distributors   supervisor, admin
+POST  /api/events/:eventId/tickets/batch  admin
+
+GET   /api/tickets                        regular, supervisor, admin
+PATCH /api/tickets/:ticketId/assign       supervisor, admin
+PATCH /api/tickets/:ticketId/sale         regular, supervisor, admin
+PATCH /api/tickets/:ticketId/check-in     regular, supervisor, admin
+
+GET   /api/payments                       supervisor, admin
+PATCH /api/payments/:paymentId/verify     supervisor, admin
+```
+
+La ruta publica sanitizada sigue sin sesion:
+
+```txt
+GET /api/public/events/:eventId/dashboard
+```
 
 ## Administrar usuarios
 
@@ -228,7 +275,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 ## Pendientes
 
 1. Cambiar pantallas operativas para usar endpoints protegidos con sesion de usuario.
-2. Agregar autorizacion por rol a cada flujo operativo.
+2. Conectar vistas operativas reales a los endpoints con rol.
 3. Agregar cambio de contrasena desde la pantalla de usuarios.
 4. Mejorar manejo visible de expiracion de sesion.
 5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
