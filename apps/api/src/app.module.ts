@@ -9,7 +9,10 @@ import { EventsModule } from "./events/events.module";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      envFilePath: [".env", "../../.env"],
+      isGlobal: true
+    }),
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), process.env.WEB_DIST_PATH ?? "apps/web/dist"),
       exclude: ["/api*"]

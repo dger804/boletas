@@ -56,6 +56,19 @@ const usersUrl = `${apiBase}/auth/users`;
 
     let currentUser: StoredUser | null = null;
     let authToken = "";
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+
+    const resolveApiUrl = (url: string | null | undefined) => {
+      if (!url) {
+        return null;
+      }
+
+      if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
+        return `http://localhost:3000${url}`;
+      }
+
+      return url;
+    };
 
     const clearSession = () => {
       sessionStorage.removeItem("boletas.auth.token");
@@ -72,8 +85,8 @@ const usersUrl = `${apiBase}/auth/users`;
       const config = document.querySelector<HTMLElement>("[data-auth-me-url]");
 
       return {
-        authMeUrl: config?.dataset.authMeUrl ?? null,
-        usersUrl: config?.dataset.usersUrl ?? null
+        authMeUrl: resolveApiUrl(config?.dataset.authMeUrl),
+        usersUrl: resolveApiUrl(config?.dataset.usersUrl)
       };
     };
 

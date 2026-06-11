@@ -103,6 +103,15 @@ const loginUrl = `${apiBase}/auth/login`;
 
     const form = document.querySelector<HTMLFormElement>("[data-login-form]");
     const errorBox = document.querySelector<HTMLElement>("[data-login-error]");
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+
+    const resolveApiUrl = (url: string) => {
+      if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
+        return `http://localhost:3000${url}`;
+      }
+
+      return url;
+    };
 
     const showError = (message: string) => {
       if (!errorBox) {
@@ -132,7 +141,7 @@ const loginUrl = `${apiBase}/auth/login`;
       submitButton?.setAttribute("disabled", "true");
 
       try {
-        const response = await fetch(loginUrl, {
+        const response = await fetch(resolveApiUrl(loginUrl), {
           body: JSON.stringify({ email, password }),
           headers: {
             "Content-Type": "application/json"

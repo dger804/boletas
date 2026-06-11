@@ -242,6 +242,15 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
     }
 
     const allowedRoles = new Set(["regular", "supervisor", "admin"]);
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+
+    const resolveApiUrl = (url: string) => {
+      if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
+        return `http://localhost:3000${url}`;
+      }
+
+      return url;
+    };
 
     const clearSession = () => {
       sessionStorage.removeItem("boletas.auth.token");
@@ -257,7 +266,9 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
     const getAuthMeUrl = () => {
       const config = document.querySelector<HTMLElement>("[data-auth-me-url]");
 
-      return config?.dataset.authMeUrl ?? null;
+      const url = config?.dataset.authMeUrl;
+
+      return url ? resolveApiUrl(url) : null;
     };
 
     const isStoredUser = (value: unknown): value is StoredUser => {
@@ -615,7 +626,16 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       }
 
       const root = document.querySelector<HTMLElement>("[data-dashboard-root]");
-      const dashboardUrl = root?.getAttribute("data-dashboard-url");
+      const configuredDashboardUrl = root?.getAttribute("data-dashboard-url");
+      const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+      const resolveApiUrl = (url: string) => {
+        if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
+          return `http://localhost:3000${url}`;
+        }
+
+        return url;
+      };
+      const dashboardUrl = configuredDashboardUrl ? resolveApiUrl(configuredDashboardUrl) : null;
 
       if (!dashboardUrl) {
         return;
