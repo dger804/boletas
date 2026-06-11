@@ -70,6 +70,14 @@ Servicios esperados:
 - Astro: `http://localhost:4321`
 - NestJS: `http://localhost:3000/api/health`
 
+Tambien puedes levantar solo la API:
+
+```bash
+pnpm dev:api
+```
+
+Este comando ejecuta `src/main.ts` con `ts-node` y `node --watch`, por lo que no necesita que exista `apps/api/dist`. Si aparece un error como `Cannot find module ... apps/api/dist/main`, revisa que tengas la version actual del script `dev` en `apps/api/package.json`.
+
 Para poder iniciar sesion en `http://localhost:4321/login`, deben cumplirse estas dos cosas:
 
 1. `http://localhost:3000/api/health` responde.
