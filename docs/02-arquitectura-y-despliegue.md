@@ -42,6 +42,8 @@ Rutas frontend actuales:
 /           landing publica promocional
 /login      formulario de acceso
 /dashboard  tablero operativo con sesion en el navegador
+/events     gestion inicial de eventos
+/users      administracion de usuarios para admin
 ```
 
 ## Por que esta forma encaja con Hostinger

@@ -423,7 +423,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
           <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-admin-only href="/users">
             Usuarios
           </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/events">
             Eventos
           </a>
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
@@ -637,6 +637,13 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       const root = document.querySelector<HTMLElement>("[data-dashboard-root]");
       const configuredDashboardUrl = root?.getAttribute("data-dashboard-url");
       const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+      const selectedEventId = new URLSearchParams(window.location.search)
+        .get("eventId")
+        ?.trim();
+      const configuredEventUrl =
+        configuredDashboardUrl && selectedEventId
+          ? configuredDashboardUrl.replace("/evt_demo/", `/${encodeURIComponent(selectedEventId)}/`)
+          : configuredDashboardUrl;
       const resolveApiUrl = (url: string) => {
         if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
           return `http://localhost:3000${url}`;
@@ -644,7 +651,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
 
         return url;
       };
-      const dashboardUrl = configuredDashboardUrl ? resolveApiUrl(configuredDashboardUrl) : null;
+      const dashboardUrl = configuredEventUrl ? resolveApiUrl(configuredEventUrl) : null;
 
       if (!dashboardUrl) {
         return;

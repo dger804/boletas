@@ -1,24 +1,24 @@
 ---
 import {
+  CalendarDays,
   LogOut,
+  Plus,
   RefreshCw,
   ShieldCheck,
-  Ticket,
-  UserPlus,
-  UsersRound
+  Ticket
 } from "lucide-astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
 const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
 const authMeUrl = `${apiBase}/auth/me`;
-const usersUrl = `${apiBase}/auth/users`;
+const eventsUrl = `${apiBase}/events`;
 ---
 
-<BaseLayout title="Usuarios | Boletas">
-  <span hidden data-auth-me-url={authMeUrl} data-users-url={usersUrl}></span>
+<BaseLayout title="Eventos | Boletas">
+  <span hidden data-auth-me-url={authMeUrl} data-events-url={eventsUrl}></span>
   <script>
+    type EventStatus = "draft" | "active" | "closed";
     type UserRole = "regular" | "supervisor" | "admin";
-    type UserStatus = "active" | "disabled";
 
     interface StoredUser {
       id: string;
@@ -27,34 +27,38 @@ const usersUrl = `${apiBase}/auth/users`;
       role: UserRole;
     }
 
-    interface ManagedUser extends StoredUser {
-      status: UserStatus;
-      lastLoginAt?: string;
+    interface EventRecord {
+      id: string;
+      name: string;
+      date: string;
+      venue: string;
+      status: EventStatus;
+      expectedAttendees: number;
       createdAt: string;
-      updatedAt: string;
     }
 
     interface AuthMeResponse {
       user?: StoredUser;
     }
 
-    interface UsersResponse {
-      users?: ManagedUser[];
-    }
-
     const allowedRoles = new Set(["regular", "supervisor", "admin"]);
-    const allowedStatuses = new Set(["active", "disabled"]);
+    const allowedEventStatuses = new Set(["draft", "active", "closed"]);
     const roleLabels: Record<UserRole, string> = {
       admin: "Admin",
       regular: "Regular",
       supervisor: "Supervisor"
     };
-    const statusLabels: Record<UserStatus, string> = {
+    const statusLabels: Record<EventStatus, string> = {
       active: "Activo",
-      disabled: "Deshabilitado"
+      closed: "Cerrado",
+      draft: "Borrador"
+    };
+    const statusClasses: Record<EventStatus, string> = {
+      active: "bg-emerald-50 text-emerald-700",
+      closed: "bg-zinc-100 text-zinc-600",
+      draft: "bg-amber-50 text-amber-700"
     };
 
-    let currentUser: StoredUser | null = null;
     let authToken = "";
     const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -86,7 +90,7 @@ const usersUrl = `${apiBase}/auth/users`;
 
       return {
         authMeUrl: resolveApiUrl(config?.dataset.authMeUrl),
-        usersUrl: resolveApiUrl(config?.dataset.usersUrl)
+        eventsUrl: resolveApiUrl(config?.dataset.eventsUrl)
       };
     };
 
@@ -106,18 +110,22 @@ const usersUrl = `${apiBase}/auth/users`;
       );
     };
 
-    const isManagedUser = (value: unknown): value is ManagedUser => {
-      if (!isStoredUser(value)) {
+    const isEventRecord = (value: unknown): value is EventRecord => {
+      if (!value || typeof value !== "object") {
         return false;
       }
 
-      const user = value as Partial<ManagedUser>;
+      const event = value as Partial<EventRecord>;
 
       return (
-        typeof user.status === "string" &&
-        allowedStatuses.has(user.status) &&
-        typeof user.createdAt === "string" &&
-        typeof user.updatedAt === "string"
+        typeof event.id === "string" &&
+        typeof event.name === "string" &&
+        typeof event.date === "string" &&
+        typeof event.venue === "string" &&
+        typeof event.status === "string" &&
+        allowedEventStatuses.has(event.status) &&
+        typeof event.expectedAttendees === "number" &&
+        typeof event.createdAt === "string"
       );
     };
 
@@ -173,6 +181,12 @@ const usersUrl = `${apiBase}/auth/users`;
       });
     };
 
+    const renderAdminOnly = (user: StoredUser) => {
+      document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
+        element.classList.toggle("hidden", user.role !== "admin");
+      });
+    };
+
     const bindLogout = () => {
       document.querySelectorAll("[data-logout-button]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -183,7 +197,7 @@ const usersUrl = `${apiBase}/auth/users`;
     };
 
     const setStatus = (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
-      const element = document.querySelector<HTMLElement>("[data-users-status]");
+      const element = document.querySelector<HTMLElement>("[data-events-status]");
 
       if (!element) {
         return;
@@ -255,15 +269,11 @@ const usersUrl = `${apiBase}/auth/users`;
       return (await response.json()) as T;
     };
 
-    const formatDate = (value?: string) => {
-      if (!value) {
-        return "Sin registro";
-      }
-
+    const formatDate = (value: string) => {
       const date = new Date(value);
 
       if (Number.isNaN(date.getTime())) {
-        return "Sin registro";
+        return "Fecha no registrada";
       }
 
       return new Intl.DateTimeFormat("es-CO", {
@@ -272,118 +282,76 @@ const usersUrl = `${apiBase}/auth/users`;
       }).format(date);
     };
 
-    const renderRoleOptions = (selectedRole: UserRole) =>
-      (["regular", "supervisor", "admin"] as const)
-        .map(
-          (role) =>
-            `<option value="${role}"${role === selectedRole ? " selected" : ""}>${roleLabels[role]}</option>`
-        )
-        .join("");
+    const toDateTimeLocal = (value: string) => {
+      if (!value) {
+        return null;
+      }
 
-    const renderStatusOptions = (selectedStatus: UserStatus) =>
-      (["active", "disabled"] as const)
-        .map(
-          (status) =>
-            `<option value="${status}"${status === selectedStatus ? " selected" : ""}>${statusLabels[status]}</option>`
-        )
-        .join("");
+      const date = new Date(value);
 
-    const renderUsers = (users: ManagedUser[]) => {
-      const body = document.querySelector<HTMLElement>("[data-users-body]");
-      const count = document.querySelector<HTMLElement>("[data-users-count]");
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+
+      return date.toISOString();
+    };
+
+    const renderEvents = (events: EventRecord[]) => {
+      const body = document.querySelector<HTMLElement>("[data-events-body]");
+      const count = document.querySelector<HTMLElement>("[data-events-count]");
 
       if (count) {
-        count.textContent = `${users.length}`;
+        count.textContent = `${events.length}`;
       }
 
       if (!body) {
         return;
       }
 
-      if (users.length === 0) {
+      if (events.length === 0) {
         body.innerHTML = `
           <tr>
             <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="6">
-              Sin usuarios registrados
+              Sin eventos registrados
             </td>
           </tr>
         `;
         return;
       }
 
-      body.innerHTML = users
-        .map((user) => {
-          const isCurrentUser = currentUser?.id === user.id;
-          const disabledRoleState = isCurrentUser ? " disabled" : "";
-          const disabledStatusState = isCurrentUser ? " disabled" : "";
-          const disabledDeleteState = isCurrentUser ? " disabled" : "";
-          const statusClass =
-            user.status === "active"
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-zinc-100 text-zinc-600";
+      body.innerHTML = events
+        .map((event) => {
+          const dashboardUrl = `/dashboard?eventId=${encodeURIComponent(event.id)}`;
+          const status = statusLabels[event.status];
+          const statusClass = statusClasses[event.status];
 
           return `
-            <tr class="align-top hover:bg-zinc-50" data-user-row="${escapeHtml(user.id)}">
-              <td class="min-w-64 px-4 py-3">
-                <input
-                  class="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-950 outline-none focus:border-zinc-500"
-                  data-user-field="name"
-                  value="${escapeHtml(user.name)}"
-                />
-                <input
-                  class="mt-2 h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none focus:border-zinc-500"
-                  data-user-field="email"
-                  type="email"
-                  value="${escapeHtml(user.email)}"
-                />
-                ${isCurrentUser ? `<span class="mt-2 inline-flex rounded-md bg-zinc-950 px-2 py-1 text-xs font-medium text-white">Sesion actual</span>` : ""}
+            <tr class="align-top hover:bg-zinc-50">
+              <td class="min-w-72 px-4 py-3">
+                <p class="font-medium text-zinc-950">${escapeHtml(event.name)}</p>
+                <p class="mt-1 text-xs text-zinc-500">${escapeHtml(event.id)}</p>
               </td>
-              <td class="px-4 py-3">
-                <select
-                  class="h-9 w-36 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700 outline-none focus:border-zinc-500 disabled:bg-zinc-100"
-                  data-user-field="role"
-                  ${disabledRoleState}
-                >
-                  ${renderRoleOptions(user.role)}
-                </select>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(formatDate(event.date))}
               </td>
-              <td class="px-4 py-3">
-                <select
-                  class="h-9 w-40 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-700 outline-none focus:border-zinc-500 disabled:bg-zinc-100"
-                  data-user-field="status"
-                  ${disabledStatusState}
-                >
-                  ${renderStatusOptions(user.status)}
-                </select>
-                <span class="mt-2 inline-flex rounded-md px-2 py-1 text-xs font-medium ${statusClass}">
-                  ${statusLabels[user.status]}
+              <td class="px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(event.venue)}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(event.expectedAttendees)}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3">
+                <span class="rounded-md px-2 py-1 text-xs font-medium ${statusClass}">
+                  ${status}
                 </span>
               </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
-                ${escapeHtml(formatDate(user.lastLoginAt))}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
-                ${escapeHtml(formatDate(user.updatedAt))}
-              </td>
-              <td class="px-4 py-3 text-right">
-                <div class="flex justify-end gap-2">
-                  <button
-                    class="inline-flex h-9 items-center rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    data-save-user
-                    type="button"
-                  >
-                    Guardar
-                  </button>
-                  <button
-                    class="inline-flex h-9 items-center rounded-md border border-rose-200 px-3 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    data-delete-user
-                    title="${isCurrentUser ? "No puedes borrar tu propia sesion" : "Borrar usuario"}"
-                    type="button"
-                    ${disabledDeleteState}
-                  >
-                    Borrar
-                  </button>
-                </div>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                <a
+                  class="inline-flex h-9 items-center rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+                  href="${dashboardUrl}"
+                >
+                  Abrir
+                </a>
               </td>
             </tr>
           `;
@@ -391,68 +359,73 @@ const usersUrl = `${apiBase}/auth/users`;
         .join("");
     };
 
-    const loadUsers = async () => {
-      const { usersUrl } = getConfig();
+    const loadEvents = async () => {
+      const { eventsUrl } = getConfig();
 
-      if (!usersUrl) {
-        setStatus("No se encontro la ruta de usuarios.", "error");
+      if (!eventsUrl) {
+        setStatus("No se encontro la ruta de eventos.", "error");
         return;
       }
 
-      setStatus("Cargando usuarios.");
+      setStatus("Cargando eventos.");
 
       try {
-        const payload = await requestJson<UsersResponse>(usersUrl);
-        const users = Array.isArray(payload.users)
-          ? payload.users.filter(isManagedUser)
-          : [];
+        const payload = await requestJson<unknown[]>(eventsUrl);
+        const events = Array.isArray(payload) ? payload.filter(isEventRecord) : [];
 
-        renderUsers(users);
-        setStatus("Usuarios actualizados.", "success");
+        renderEvents(events);
+        setStatus("Eventos actualizados.", "success");
       } catch (error) {
         setStatus(
-          error instanceof Error ? error.message : "No fue posible cargar usuarios.",
+          error instanceof Error ? error.message : "No fue posible cargar eventos.",
           "error"
         );
       }
     };
 
     const bindCreateForm = () => {
-      const form = document.querySelector<HTMLFormElement>("[data-create-user-form]");
+      const form = document.querySelector<HTMLFormElement>("[data-create-event-form]");
 
       form?.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        const { usersUrl } = getConfig();
+        const { eventsUrl } = getConfig();
         const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
 
-        if (!usersUrl) {
-          setStatus("No se encontro la ruta de usuarios.", "error");
+        if (!eventsUrl) {
+          setStatus("No se encontro la ruta de eventos.", "error");
           return;
         }
 
         const formData = new FormData(form);
+        const date = toDateTimeLocal(String(formData.get("date") ?? ""));
+
+        if (!date) {
+          setStatus("La fecha del evento no es valida.", "error");
+          return;
+        }
+
         const payload = {
-          email: String(formData.get("email") ?? "").trim(),
+          date,
+          expectedAttendees: Number(formData.get("expectedAttendees") ?? 0),
           name: String(formData.get("name") ?? "").trim(),
-          password: String(formData.get("password") ?? ""),
-          role: String(formData.get("role") ?? "regular"),
-          status: String(formData.get("status") ?? "active")
+          status: String(formData.get("status") ?? "draft"),
+          venue: String(formData.get("venue") ?? "").trim()
         };
 
         submitButton?.setAttribute("disabled", "true");
 
         try {
-          await requestJson<ManagedUser>(usersUrl, {
+          await requestJson<EventRecord>(eventsUrl, {
             body: JSON.stringify(payload),
             method: "POST"
           });
           form.reset();
-          setStatus("Usuario creado.", "success");
-          await loadUsers();
+          setStatus("Evento creado.", "success");
+          await loadEvents();
         } catch (error) {
           setStatus(
-            error instanceof Error ? error.message : "No fue posible crear el usuario.",
+            error instanceof Error ? error.message : "No fue posible crear el evento.",
             "error"
           );
         } finally {
@@ -461,93 +434,9 @@ const usersUrl = `${apiBase}/auth/users`;
       });
     };
 
-    const bindUserActions = () => {
-      document.querySelector("[data-refresh-users]")?.addEventListener("click", () => {
-        void loadUsers();
-      });
-
-      document.querySelector("[data-users-body]")?.addEventListener("click", async (event) => {
-        const target = event.target as HTMLElement;
-        const saveButton = target.closest<HTMLButtonElement>("[data-save-user]");
-        const deleteButton = target.closest<HTMLButtonElement>("[data-delete-user]");
-        const button = saveButton ?? deleteButton;
-
-        if (!button) {
-          return;
-        }
-
-        const { usersUrl } = getConfig();
-        const row = button.closest<HTMLElement>("[data-user-row]");
-        const userId = row?.dataset.userRow;
-
-        if (!usersUrl || !row || !userId) {
-          setStatus("No se encontro el usuario seleccionado.", "error");
-          return;
-        }
-
-        if (deleteButton) {
-          if (currentUser?.id === userId) {
-            setStatus("No puedes borrar tu propia sesion.", "error");
-            return;
-          }
-
-          const name =
-            row.querySelector<HTMLInputElement>('[data-user-field="name"]')?.value ??
-            "este usuario";
-          const confirmed = window.confirm(
-            `Borrar ${name.trim() || "este usuario"}? Esta accion no se puede deshacer.`
-          );
-
-          if (!confirmed) {
-            return;
-          }
-
-          deleteButton.setAttribute("disabled", "true");
-
-          try {
-            await requestJson<ManagedUser>(`${usersUrl}/${encodeURIComponent(userId)}`, {
-              method: "DELETE"
-            });
-            setStatus("Usuario borrado.", "success");
-            await loadUsers();
-          } catch (error) {
-            setStatus(
-              error instanceof Error ? error.message : "No fue posible borrar el usuario.",
-              "error"
-            );
-          } finally {
-            deleteButton.removeAttribute("disabled");
-          }
-
-          return;
-        }
-
-        const field = (name: string) =>
-          row.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-user-field="${name}"]`)?.value ?? "";
-        const payload = {
-          email: field("email").trim(),
-          name: field("name").trim(),
-          role: field("role"),
-          status: field("status")
-        };
-
-        button.setAttribute("disabled", "true");
-
-        try {
-          await requestJson<ManagedUser>(`${usersUrl}/${encodeURIComponent(userId)}`, {
-            body: JSON.stringify(payload),
-            method: "PATCH"
-          });
-          setStatus("Usuario actualizado.", "success");
-          await loadUsers();
-        } catch (error) {
-          setStatus(
-            error instanceof Error ? error.message : "No fue posible actualizar el usuario.",
-            "error"
-          );
-        } finally {
-          button.removeAttribute("disabled");
-        }
+    const bindEventActions = () => {
+      document.querySelector("[data-refresh-events]")?.addEventListener("click", () => {
+        void loadEvents();
       });
     };
 
@@ -561,27 +450,19 @@ const usersUrl = `${apiBase}/auth/users`;
         redirectToLogin();
       } else {
         authToken = token;
-        currentUser = user;
-
         whenReady(() => {
           renderUser(user);
           bindLogout();
           bindCreateForm();
-          bindUserActions();
+          bindEventActions();
         });
 
         validateSession(authMeUrl, token)
           .then((apiUser) => {
-            currentUser = apiUser;
             sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
             renderUser(apiUser);
-
-            if (apiUser.role !== "admin") {
-              window.location.replace("/dashboard");
-              return;
-            }
-
-            void loadUsers();
+            renderAdminOnly(apiUser);
+            void loadEvents();
           })
           .catch(() => {
             redirectToLogin();
@@ -601,7 +482,7 @@ const usersUrl = `${apiBase}/auth/users`;
           </span>
           <div>
             <p class="text-sm font-semibold text-zinc-950">Boletas</p>
-            <p class="text-xs text-zinc-500">Administracion</p>
+            <p class="text-xs text-zinc-500">Eventos</p>
           </div>
         </div>
 
@@ -609,10 +490,10 @@ const usersUrl = `${apiBase}/auth/users`;
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/dashboard">
             Tablero
           </a>
-          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/users">
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-admin-only href="/users">
             Usuarios
           </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/events">
+          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/events">
             Eventos
           </a>
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="#">
@@ -640,18 +521,18 @@ const usersUrl = `${apiBase}/auth/users`;
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div class="flex items-center gap-2 text-xs font-medium text-zinc-500">
-              <UsersRound size={14} />
-              <span>Control de acceso</span>
+              <CalendarDays size={14} />
+              <span>Agenda operativa</span>
             </div>
             <h1 class="mt-2 text-2xl font-semibold text-zinc-950">
-              Usuarios
+              Eventos
             </h1>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
             <button
               class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              data-refresh-users
+              data-refresh-events
               title="Actualizar"
               type="button"
             >
@@ -683,25 +564,26 @@ const usersUrl = `${apiBase}/auth/users`;
       </header>
 
       <div class="space-y-6 p-4 sm:p-6">
-        <p class="hidden rounded-md border px-3 py-2 text-sm" data-users-status></p>
+        <p class="hidden rounded-md border px-3 py-2 text-sm" data-events-status></p>
 
         <section class="grid gap-6 xl:grid-cols-[360px_1fr]">
-          <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <section class="hidden rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" data-admin-only>
             <div class="flex items-center gap-3">
               <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
-                <UserPlus size={18} />
+                <Plus size={18} />
               </span>
               <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Nuevo usuario</h2>
-                <p class="mt-1 text-xs text-zinc-500">Cuenta operativa</p>
+                <h2 class="text-sm font-semibold text-zinc-950">Nuevo evento</h2>
+                <p class="mt-1 text-xs text-zinc-500">Registro principal</p>
               </div>
             </div>
 
-            <form class="mt-5 grid gap-4" data-create-user-form>
+            <form class="mt-5 grid gap-4" data-create-event-form>
               <label class="grid gap-2">
                 <span class="text-sm font-medium text-zinc-700">Nombre</span>
                 <input
                   class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  maxlength="120"
                   name="name"
                   required
                   type="text"
@@ -709,39 +591,37 @@ const usersUrl = `${apiBase}/auth/users`;
               </label>
 
               <label class="grid gap-2">
-                <span class="text-sm font-medium text-zinc-700">Correo</span>
+                <span class="text-sm font-medium text-zinc-700">Fecha</span>
                 <input
-                  autocomplete="email"
                   class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
-                  name="email"
+                  name="date"
                   required
-                  type="email"
+                  type="datetime-local"
                 />
               </label>
 
               <label class="grid gap-2">
-                <span class="text-sm font-medium text-zinc-700">Contrasena temporal</span>
+                <span class="text-sm font-medium text-zinc-700">Lugar</span>
                 <input
-                  autocomplete="new-password"
                   class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
-                  minlength="8"
-                  name="password"
+                  maxlength="160"
+                  name="venue"
                   required
-                  type="password"
+                  type="text"
                 />
               </label>
 
               <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <label class="grid gap-2">
-                  <span class="text-sm font-medium text-zinc-700">Rol</span>
-                  <select
-                    class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
-                    name="role"
-                  >
-                    <option value="regular">Regular</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  <span class="text-sm font-medium text-zinc-700">Aforo esperado</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    min="0"
+                    name="expectedAttendees"
+                    required
+                    type="number"
+                    value="0"
+                  />
                 </label>
 
                 <label class="grid gap-2">
@@ -750,8 +630,9 @@ const usersUrl = `${apiBase}/auth/users`;
                     class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
                     name="status"
                   >
+                    <option value="draft">Borrador</option>
                     <option value="active">Activo</option>
-                    <option value="disabled">Deshabilitado</option>
+                    <option value="closed">Cerrado</option>
                   </select>
                 </label>
               </div>
@@ -760,7 +641,7 @@ const usersUrl = `${apiBase}/auth/users`;
                 class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                 type="submit"
               >
-                Crear usuario
+                Crear evento
               </button>
             </form>
           </section>
@@ -768,9 +649,9 @@ const usersUrl = `${apiBase}/auth/users`;
           <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Cuentas</h2>
+                <h2 class="text-sm font-semibold text-zinc-950">Agenda</h2>
                 <p class="mt-1 text-xs text-zinc-500">
-                  <span data-users-count>0</span> registradas
+                  <span data-events-count>0</span> registrados
                 </p>
               </div>
             </div>
@@ -779,18 +660,18 @@ const usersUrl = `${apiBase}/auth/users`;
               <table class="min-w-full divide-y divide-zinc-100 text-left">
                 <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
                   <tr>
-                    <th class="px-4 py-3 font-medium">Usuario</th>
-                    <th class="px-4 py-3 font-medium">Rol</th>
+                    <th class="px-4 py-3 font-medium">Evento</th>
+                    <th class="px-4 py-3 font-medium">Fecha</th>
+                    <th class="px-4 py-3 font-medium">Lugar</th>
+                    <th class="px-4 py-3 font-medium">Aforo</th>
                     <th class="px-4 py-3 font-medium">Estado</th>
-                    <th class="px-4 py-3 font-medium">Ultimo ingreso</th>
-                    <th class="px-4 py-3 font-medium">Actualizado</th>
                     <th class="px-4 py-3 text-right font-medium">Accion</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-zinc-100 bg-white" data-users-body>
+                <tbody class="divide-y divide-zinc-100 bg-white" data-events-body>
                   <tr>
                     <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="6">
-                      Cargando usuarios
+                      Cargando eventos
                     </td>
                   </tr>
                 </tbody>

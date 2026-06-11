@@ -166,6 +166,34 @@ GET /api/public/events/:eventId/dashboard
 
 El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/summary` con el token guardado en `sessionStorage`. Esa ruta devuelve el mismo contrato sanitizado que la ruta publica, por lo que no expone compradores, telefonos, referencias ni URLs de evidencia a usuarios `regular`.
 
+## Administrar eventos
+
+Los usuarios autenticados pueden entrar a:
+
+```txt
+https://boletas.corporacionceer.com/events
+```
+
+La pantalla lista eventos con:
+
+```txt
+GET /api/events
+Authorization: Bearer <token>
+```
+
+Los usuarios `admin` tambien ven el formulario de creacion, que usa:
+
+```txt
+POST /api/events
+Authorization: Bearer <token_admin>
+```
+
+Cada evento de la tabla abre el tablero con `eventId` en la URL:
+
+```txt
+/dashboard?eventId=ID_DEL_EVENTO
+```
+
 ## Administrar usuarios
 
 Los usuarios `admin` pueden administrar cuentas desde el frontend:
@@ -288,7 +316,8 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Conectar vistas operativas reales a los endpoints con rol.
-2. Agregar cambio de contrasena desde la pantalla de usuarios.
-3. Mejorar manejo visible de expiracion de sesion.
-4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Conectar vistas de boletas, pagos y entrada a los endpoints con rol.
+2. Agregar edicion de eventos.
+3. Agregar cambio de contrasena desde la pantalla de usuarios.
+4. Mejorar manejo visible de expiracion de sesion.
+5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
