@@ -263,6 +263,16 @@ Si la API responde correctamente, el dashboard actualiza `boletas.auth.user` con
 
 El boton `Salir` tambien elimina esos valores y redirige a `/login`.
 
+El encabezado del dashboard muestra un indicador discreto de sincronizacion:
+
+```txt
+Datos iniciales  -> se esta mostrando el fallback renderizado en el build.
+Datos en vivo    -> el navegador recibio correctamente el resumen protegido.
+Sin sincronizar  -> el refresh del resumen fallo y la pantalla conserva el fallback.
+```
+
+En DevTools tambien puede revisarse el atributo `data-dashboard-status` del contenedor principal.
+
 Esta proteccion mejora la experiencia del frontend, pero la seguridad real debe seguir aplicada en la API con guards y roles.
 
 ## Limpieza de usuarios de prueba

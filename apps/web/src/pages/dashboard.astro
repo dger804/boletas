@@ -478,6 +478,14 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
               <Plus size={18} />
               Boleta
             </button>
+            <div
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-700"
+              data-dashboard-sync-status="initial"
+              title="Estado de sincronizacion del tablero"
+            >
+              <span class="h-2 w-2 rounded-full bg-amber-500" data-dashboard-sync-dot></span>
+              <span data-dashboard-sync-label>Datos iniciales</span>
+            </div>
             <div class="flex h-10 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3">
               <ShieldCheck class="text-emerald-600" size={17} />
               <div class="hidden leading-tight sm:block">
@@ -583,6 +591,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
       type RuntimeEvidenceStatus = "approved" | "pending" | "rejected";
       type RuntimeEvidenceLabel = "Aprobado" | "Pendiente" | "Rechazado";
       type RuntimePaymentMethod = "cash" | "transfer";
+      type RuntimeSyncStatus = "fallback" | "initial" | "live";
 
       interface RuntimePublicDashboard {
         event: {
@@ -718,6 +727,45 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
 
         if (element) {
           element.innerHTML = html;
+        }
+      };
+
+      const setDashboardSyncStatus = (status: RuntimeSyncStatus) => {
+        const statusElement = document.querySelector<HTMLElement>("[data-dashboard-sync-status]");
+        const dotElement = document.querySelector<HTMLElement>("[data-dashboard-sync-dot]");
+        const labelElement = document.querySelector<HTMLElement>("[data-dashboard-sync-label]");
+        const labels: Record<RuntimeSyncStatus, string> = {
+          fallback: "Sin sincronizar",
+          initial: "Datos iniciales",
+          live: "Datos en vivo"
+        };
+        const statusClasses: Record<RuntimeSyncStatus, string> = {
+          fallback:
+            "inline-flex h-10 items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700",
+          initial:
+            "inline-flex h-10 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-700",
+          live:
+            "inline-flex h-10 items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700"
+        };
+        const dotClasses: Record<RuntimeSyncStatus, string> = {
+          fallback: "h-2 w-2 rounded-full bg-rose-500",
+          initial: "h-2 w-2 rounded-full bg-amber-500",
+          live: "h-2 w-2 rounded-full bg-emerald-500"
+        };
+
+        root?.setAttribute("data-dashboard-status", status);
+
+        if (statusElement) {
+          statusElement.className = statusClasses[status];
+          statusElement.dataset.dashboardSyncStatus = status;
+        }
+
+        if (dotElement) {
+          dotElement.className = dotClasses[status];
+        }
+
+        if (labelElement) {
+          labelElement.textContent = labels[status];
         }
       };
 
@@ -893,9 +941,12 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
 
           return response.json();
         })
-        .then((dashboard: RuntimePublicDashboard) => renderDashboard(dashboard))
+        .then((dashboard: RuntimePublicDashboard) => {
+          renderDashboard(dashboard);
+          setDashboardSyncStatus("live");
+        })
         .catch(() => {
-          root?.setAttribute("data-dashboard-status", "fallback");
+          setDashboardSyncStatus("fallback");
         });
     };
 
