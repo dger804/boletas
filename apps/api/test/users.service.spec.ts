@@ -109,4 +109,51 @@ describe("UsersService", () => {
       service.updateUser("usr_admin", { role: "regular" })
     ).rejects.toThrow(BadRequestException);
   });
+
+  it("deletes another user and returns a sanitized record", async () => {
+    const regularUser = createUser({
+      email: "regular@example.com",
+      id: "usr_regular",
+      name: "Regular",
+      role: "regular"
+    });
+    const prisma = createPrisma({
+      delete: jest.fn().mockResolvedValue(regularUser),
+      findUnique: jest.fn().mockResolvedValue(regularUser)
+    });
+    const service = new UsersService(prisma);
+
+    const response = await service.deleteUser("usr_regular", "usr_admin");
+
+    expect(prisma.appUser.delete).toHaveBeenCalledWith({
+      where: { id: "usr_regular" }
+    });
+    expect(response).toMatchObject({
+      email: "regular@example.com",
+      id: "usr_regular",
+      role: "regular"
+    });
+    expect(response).not.toHaveProperty("passwordHash");
+  });
+
+  it("prevents deleting the current user", async () => {
+    const prisma = createPrisma({});
+    const service = new UsersService(prisma);
+
+    await expect(
+      service.deleteUser("usr_admin", "usr_admin")
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it("prevents deleting the last active admin", async () => {
+    const prisma = createPrisma({
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn().mockResolvedValue(createUser())
+    });
+    const service = new UsersService(prisma);
+
+    await expect(
+      service.deleteUser("usr_admin", "usr_other_admin")
+    ).rejects.toThrow(BadRequestException);
+  });
 });

@@ -94,6 +94,34 @@ export class UsersService {
     }
   }
 
+  async deleteUser(id: string, actorUserId: string): Promise<ManagedUser> {
+    this.ensureDatabase();
+
+    if (id === actorUserId) {
+      throw new BadRequestException("current user cannot be deleted");
+    }
+
+    const existing = await this.prisma.appUser.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new NotFoundException("user was not found");
+    }
+
+    await this.ensureLastActiveAdminRemains(existing, {
+      status: "disabled"
+    });
+
+    try {
+      await this.prisma.appUser.delete({
+        where: { id }
+      });
+
+      return this.toManagedUser(existing);
+    } catch (error) {
+      this.handlePrismaWriteError(error);
+    }
+  }
+
   private async ensureLastActiveAdminRemains(
     existing: AppUser,
     dto: UpdateUserDto

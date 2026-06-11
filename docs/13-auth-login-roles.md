@@ -130,6 +130,7 @@ crear usuarios
 editar nombre y correo
 cambiar rol
 cambiar estado
+borrar usuarios
 ```
 
 El propio frontend valida `/api/auth/me`; si el usuario autenticado no es `admin`, redirige a `/dashboard`.
@@ -142,6 +143,7 @@ La API que respalda esta pantalla es:
 GET   /api/auth/users
 POST  /api/auth/users
 PATCH /api/auth/users/:id
+DELETE /api/auth/users/:id
 Authorization: Bearer <token_admin>
 ```
 
@@ -182,6 +184,10 @@ Invoke-RestMethod `
 ```
 
 Las respuestas nunca incluyen `password_hash`. La API impide degradar o deshabilitar al ultimo `admin` activo para evitar perder acceso administrativo.
+
+El borrado exige una sesion real de usuario `admin`, no solo `ADMIN_API_TOKEN`, porque la API necesita saber quien actua para impedir que un admin se borre a si mismo. Tambien se bloquea borrar al ultimo `admin` activo.
+
+Cuando se quiera conservar trazabilidad de una cuenta de prueba o de un usuario que ya no debe entrar, preferir `status=disabled` antes que borrar.
 
 Cuando un usuario cambia de rol o estado, los guards consultan la base de datos al validar la sesion. Eso permite que `/api/auth/me` devuelva el rol vigente y que un usuario deshabilitado deje de poder usar su token aunque no haya expirado todavia.
 
