@@ -382,7 +382,7 @@ export class EventStoreService {
     if (this.prisma?.isConfigured()) {
       const ticket = await this.findPrismaTicket(ticketId);
 
-      if (["paid", "used", "void"].includes(ticket.status)) {
+      if (["paid", "sold", "used", "void"].includes(ticket.status)) {
         throw new BadRequestException("ticket cannot be sold in its current status");
       }
 
@@ -426,7 +426,7 @@ export class EventStoreService {
 
     const ticket = this.findTicket(ticketId);
 
-    if (["paid", "used", "void"].includes(ticket.status)) {
+    if (["paid", "sold", "used", "void"].includes(ticket.status)) {
       throw new BadRequestException("ticket cannot be sold in its current status");
     }
 

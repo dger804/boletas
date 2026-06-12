@@ -138,4 +138,30 @@ describe("EventStoreService", () => {
       })
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it("does not allow registering a sale twice for the same ticket", async () => {
+    const store = new EventStoreService();
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const ticket = tickets[0];
+    if (!ticket) {
+      throw new Error("ticket was not created");
+    }
+
+    await store.registerSale(ticket.id, {
+      amount: 90000,
+      buyerName: "Comprador Test",
+      method: "cash"
+    });
+
+    await expect(
+      store.registerSale(ticket.id, {
+        amount: 90000,
+        buyerName: "Comprador Duplicado",
+        method: "cash"
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });

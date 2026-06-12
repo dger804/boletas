@@ -222,6 +222,17 @@ POST /api/events/:eventId/tickets/batch
 Authorization: Bearer <token_admin>
 ```
 
+Desde la misma pantalla se puede seleccionar una boleta disponible, asignada o reservada y registrar su venta:
+
+```txt
+PATCH /api/tickets/:ticketId/sale
+Authorization: Bearer <token>
+```
+
+La venta exige comprador, metodo y valor recibido. Referencia, telefono, URL de evidencia y notas son opcionales. Al registrarse, la boleta queda en estado `sold` y se crea una evidencia de pago `pending`, que luego debe validarse desde el flujo de pagos.
+
+La API bloquea registrar una segunda venta sobre boletas `sold`, `paid`, `used` o `void` para evitar evidencias duplicadas sobre la misma boleta.
+
 ## Administrar usuarios
 
 Los usuarios `admin` pueden administrar cuentas desde el frontend:
@@ -344,7 +355,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Conectar ventas, pagos y entrada a los endpoints con rol.
+1. Conectar validacion de pagos y entrada a los endpoints con rol.
 2. Agregar asignacion de boletas a distribuidores.
 3. Agregar edicion de eventos.
 4. Agregar cambio de contrasena desde la pantalla de usuarios.

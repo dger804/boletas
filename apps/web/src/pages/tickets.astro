@@ -118,6 +118,8 @@ const ticketsUrl = `${apiBase}/tickets`;
 
     let authToken = "";
     let currentEvents: EventRecord[] = [];
+    let currentTickets: TicketRecord[] = [];
+    let selectedTicketId = "";
     let selectedEventId = new URLSearchParams(window.location.search)
       .get("eventId")
       ?.trim() ?? "";
@@ -380,6 +382,12 @@ const ticketsUrl = `${apiBase}/tickets`;
     const getSelectedEvent = () =>
       currentEvents.find((event) => event.id === selectedEventId) ?? currentEvents[0] ?? null;
 
+    const isSaleableTicket = (ticket: TicketRecord) =>
+      ["assigned", "available", "reserved"].includes(ticket.status);
+
+    const getSelectedTicket = () =>
+      currentTickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
+
     const updateSelectedEvent = (eventId: string) => {
       selectedEventId = eventId;
       const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
@@ -427,6 +435,63 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
     };
 
+    const updateSalePanel = () => {
+      const ticket = getSelectedTicket();
+      const selectedCode = document.querySelector<HTMLElement>("[data-sale-ticket-code]");
+      const submitButton = document.querySelector<HTMLButtonElement>("[data-register-sale-submit]");
+      const form = document.querySelector<HTMLFormElement>("[data-register-sale-form]");
+
+      if (selectedCode) {
+        selectedCode.textContent = ticket
+          ? `Boleta ${ticket.code}`
+          : "Selecciona una boleta";
+      }
+
+      if (submitButton) {
+        submitButton.disabled = !ticket || !isSaleableTicket(ticket);
+      }
+
+      if (!form || !ticket) {
+        return;
+      }
+
+      const amount = form.querySelector<HTMLInputElement>('[name="amount"]');
+      const buyerName = form.querySelector<HTMLInputElement>('[name="buyerName"]');
+      const capitalizationAmount = form.querySelector<HTMLInputElement>(
+        '[name="capitalizationAmount"]'
+      );
+
+      if (amount) {
+        amount.value = String(ticket.price);
+      }
+
+      if (buyerName) {
+        buyerName.value = ticket.recipientName ?? "";
+      }
+
+      if (capitalizationAmount) {
+        capitalizationAmount.value = String(ticket.capitalizationAmount);
+      }
+    };
+
+    const selectTicketForSale = (ticketId: string) => {
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      if (!isSaleableTicket(ticket)) {
+        setStatus("Esta boleta ya no permite registrar venta.", "error");
+        return;
+      }
+
+      selectedTicketId = ticket.id;
+      updateSalePanel();
+      setStatus(`Venta preparada para ${ticket.code}.`);
+    };
+
     const renderTickets = (tickets: TicketRecord[]) => {
       const body = document.querySelector<HTMLElement>("[data-tickets-body]");
       const count = document.querySelector<HTMLElement>("[data-tickets-count]");
@@ -456,7 +521,7 @@ const ticketsUrl = `${apiBase}/tickets`;
       if (tickets.length === 0) {
         body.innerHTML = `
           <tr>
-            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="7">
+            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="8">
               Sin boletas registradas para este evento
             </td>
           </tr>
@@ -475,6 +540,17 @@ const ticketsUrl = `${apiBase}/tickets`;
           const paymentMethod = ticket.paymentMethod
             ? paymentMethodLabels[ticket.paymentMethod]
             : "Sin pago";
+          const saleButton = isSaleableTicket(ticket)
+            ? `
+              <button
+                class="inline-flex h-9 items-center rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+                data-select-ticket-sale="${escapeHtml(ticket.id)}"
+                type="button"
+              >
+                Venta
+              </button>
+            `
+            : `<span class="text-xs text-zinc-400">No disponible</span>`;
 
           return `
             <tr class="align-top hover:bg-zinc-50">
@@ -501,6 +577,9 @@ const ticketsUrl = `${apiBase}/tickets`;
               <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
                 ${escapeHtml(formatDate(ticket.createdAt))}
               </td>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                ${saleButton}
+              </td>
             </tr>
           `;
         })
@@ -516,7 +595,10 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
 
       if (!selectedEventId) {
+        currentTickets = [];
+        selectedTicketId = "";
         renderTickets([]);
+        updateSalePanel();
         setStatus("Selecciona un evento para ver sus boletas.");
         return;
       }
@@ -528,7 +610,12 @@ const ticketsUrl = `${apiBase}/tickets`;
         const payload = await requestJson<unknown[]>(url);
         const tickets = Array.isArray(payload) ? payload.filter(isTicketRecord) : [];
 
+        currentTickets = tickets;
+        if (!currentTickets.some((ticket) => ticket.id === selectedTicketId && isSaleableTicket(ticket))) {
+          selectedTicketId = "";
+        }
         renderTickets(tickets);
+        updateSalePanel();
         setStatus("Boletas actualizadas.", "success");
       } catch (error) {
         setStatus(
@@ -556,7 +643,10 @@ const ticketsUrl = `${apiBase}/tickets`;
         if (selectedEventId) {
           await loadTickets();
         } else {
+          currentTickets = [];
+          selectedTicketId = "";
           renderTickets([]);
+          updateSalePanel();
           setStatus("No hay eventos para consultar.");
         }
       } catch (error) {
@@ -579,6 +669,17 @@ const ticketsUrl = `${apiBase}/tickets`;
           updateSelectedEvent(target.value);
           void loadTickets();
         });
+
+      document.querySelector("[data-tickets-body]")?.addEventListener("click", (event) => {
+        const target = event.target as HTMLElement;
+        const saleButton = target.closest<HTMLButtonElement>("[data-select-ticket-sale]");
+
+        if (!saleButton?.dataset.selectTicketSale) {
+          return;
+        }
+
+        selectTicketForSale(saleButton.dataset.selectTicketSale);
+      });
     };
 
     const bindCreateBatchForm = () => {
@@ -628,6 +729,70 @@ const ticketsUrl = `${apiBase}/tickets`;
       });
     };
 
+    const bindRegisterSaleForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-register-sale-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { ticketsUrl } = getConfig();
+        const ticket = getSelectedTicket();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!ticketsUrl || !ticket) {
+          setStatus("Selecciona una boleta antes de registrar la venta.", "error");
+          return;
+        }
+
+        if (!isSaleableTicket(ticket)) {
+          setStatus("Esta boleta ya no permite registrar venta.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const buyerPhone = String(formData.get("buyerPhone") ?? "").trim();
+        const evidenceUrl = String(formData.get("evidenceUrl") ?? "").trim();
+        const notes = String(formData.get("notes") ?? "").trim();
+        const reference = String(formData.get("reference") ?? "").trim();
+        const payload = {
+          amount: Number(formData.get("amount") ?? ticket.price),
+          buyerName: String(formData.get("buyerName") ?? "").trim(),
+          capitalizationAmount: Number(
+            formData.get("capitalizationAmount") ?? ticket.capitalizationAmount
+          ),
+          method: String(formData.get("method") ?? "cash"),
+          ...(buyerPhone ? { buyerPhone } : {}),
+          ...(evidenceUrl ? { evidenceUrl } : {}),
+          ...(notes ? { notes } : {}),
+          ...(reference ? { reference } : {})
+        };
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<{ payment: unknown; ticket: TicketRecord }>(
+            `${ticketsUrl}/${encodeURIComponent(ticket.id)}/sale`,
+            {
+              body: JSON.stringify(payload),
+              method: "PATCH"
+            }
+          );
+          form.reset();
+          selectedTicketId = "";
+          setStatus("Venta registrada. El pago queda pendiente de validacion.", "success");
+          await loadTickets();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible registrar la venta.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+          updateSalePanel();
+        }
+      });
+    };
+
     try {
       const { authMeUrl } = getConfig();
       const token = sessionStorage.getItem("boletas.auth.token");
@@ -643,6 +808,7 @@ const ticketsUrl = `${apiBase}/tickets`;
           bindLogout();
           bindTicketActions();
           bindCreateBatchForm();
+          bindRegisterSaleForm();
         });
 
         validateSession(authMeUrl, token)
@@ -776,7 +942,119 @@ const ticketsUrl = `${apiBase}/tickets`;
         </section>
 
         <section class="grid gap-6 xl:grid-cols-[360px_1fr]">
-          <section class="hidden rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" data-admin-only>
+          <div class="space-y-6">
+            <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-emerald-600 text-white">
+                  <Ticket size={18} />
+                </span>
+                <div>
+                  <h2 class="text-sm font-semibold text-zinc-950">Registrar venta</h2>
+                  <p class="mt-1 text-xs text-zinc-500" data-sale-ticket-code>Selecciona una boleta</p>
+                </div>
+              </div>
+
+              <form class="mt-5 grid gap-4" data-register-sale-form>
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Comprador</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="120"
+                    name="buyerName"
+                    required
+                    type="text"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Telefono</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="40"
+                    name="buyerPhone"
+                    type="tel"
+                  />
+                </label>
+
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <label class="grid gap-2">
+                    <span class="text-sm font-medium text-zinc-700">Metodo</span>
+                    <select
+                      class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
+                      name="method"
+                    >
+                      <option value="transfer">Transferencia</option>
+                      <option value="cash">Efectivo</option>
+                    </select>
+                  </label>
+
+                  <label class="grid gap-2">
+                    <span class="text-sm font-medium text-zinc-700">Valor recibido</span>
+                    <input
+                      class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                      min="0"
+                      name="amount"
+                      required
+                      step="1000"
+                      type="number"
+                    />
+                  </label>
+                </div>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Capitalizacion</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    min="0"
+                    name="capitalizationAmount"
+                    step="1000"
+                    type="number"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Referencia</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="120"
+                    name="reference"
+                    placeholder="Banco, caja o comprobante"
+                    type="text"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">URL evidencia</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="500"
+                    name="evidenceUrl"
+                    placeholder="https://..."
+                    type="url"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Notas</span>
+                  <textarea
+                    class="min-h-20 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                    maxlength="500"
+                    name="notes"
+                  ></textarea>
+                </label>
+
+                <button
+                  class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-register-sale-submit
+                  disabled
+                  type="submit"
+                >
+                  Registrar venta
+                </button>
+              </form>
+            </section>
+
+            <section class="hidden rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" data-admin-only>
             <div class="flex items-center gap-3">
               <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
                 <Plus size={18} />
@@ -844,7 +1122,8 @@ const ticketsUrl = `${apiBase}/tickets`;
                 Crear lote
               </button>
             </form>
-          </section>
+            </section>
+          </div>
 
           <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -865,11 +1144,12 @@ const ticketsUrl = `${apiBase}/tickets`;
                     <th class="px-4 py-3 text-right font-medium">Valor</th>
                     <th class="px-4 py-3 text-right font-medium">Capitalizacion</th>
                     <th class="px-4 py-3 font-medium">Creada</th>
+                    <th class="px-4 py-3 text-right font-medium">Accion</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100 bg-white" data-tickets-body>
                   <tr>
-                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="7">
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="8">
                       Cargando boletas
                     </td>
                   </tr>
