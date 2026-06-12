@@ -59,6 +59,7 @@ const ticketsUrl = `${apiBase}/tickets`;
       price: number;
       status: TicketStatus;
       distributorId?: string;
+      distributorName?: string;
       recipientName?: string;
       buyerName?: string;
       buyerPhone?: string;
@@ -208,6 +209,9 @@ const ticketsUrl = `${apiBase}/tickets`;
         typeof ticket.paymentMethod === "undefined" ||
         (typeof ticket.paymentMethod === "string" &&
           allowedPaymentMethods.has(ticket.paymentMethod));
+      const distributorNameIsValid =
+        typeof ticket.distributorName === "undefined" ||
+        typeof ticket.distributorName === "string";
 
       return (
         typeof ticket.id === "string" &&
@@ -218,6 +222,7 @@ const ticketsUrl = `${apiBase}/tickets`;
         allowedTicketStatuses.has(ticket.status) &&
         typeof ticket.capitalizationAmount === "number" &&
         typeof ticket.createdAt === "string" &&
+        distributorNameIsValid &&
         paymentMethodIsValid
       );
     };
@@ -521,7 +526,7 @@ const ticketsUrl = `${apiBase}/tickets`;
       if (tickets.length === 0) {
         body.innerHTML = `
           <tr>
-            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="8">
+            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="9">
               Sin boletas registradas para este evento
             </td>
           </tr>
@@ -536,7 +541,10 @@ const ticketsUrl = `${apiBase}/tickets`;
           const holder =
             ticket.buyerName ??
             ticket.recipientName ??
-            (ticket.distributorId ? "Asignada a responsable" : "Sin asignar");
+            "Sin titular";
+          const responsible =
+            ticket.distributorName ??
+            (ticket.distributorId ? "Responsable asignado" : "Sin responsable");
           const paymentMethod = ticket.paymentMethod
             ? paymentMethodLabels[ticket.paymentMethod]
             : "Sin pago";
@@ -556,6 +564,9 @@ const ticketsUrl = `${apiBase}/tickets`;
             <tr class="align-top hover:bg-zinc-50">
               <td class="whitespace-nowrap px-4 py-3 font-medium text-zinc-950">
                 ${escapeHtml(ticket.code)}
+              </td>
+              <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(responsible)}
               </td>
               <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
                 ${escapeHtml(holder)}
@@ -1138,6 +1149,7 @@ const ticketsUrl = `${apiBase}/tickets`;
                 <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
                   <tr>
                     <th class="px-4 py-3 font-medium">Codigo</th>
+                    <th class="px-4 py-3 font-medium">Responsable</th>
                     <th class="px-4 py-3 font-medium">Titular</th>
                     <th class="px-4 py-3 font-medium">Estado</th>
                     <th class="px-4 py-3 font-medium">Pago</th>
@@ -1149,7 +1161,7 @@ const ticketsUrl = `${apiBase}/tickets`;
                 </thead>
                 <tbody class="divide-y divide-zinc-100 bg-white" data-tickets-body>
                   <tr>
-                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="8">
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="9">
                       Cargando boletas
                     </td>
                   </tr>

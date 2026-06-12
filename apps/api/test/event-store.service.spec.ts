@@ -115,6 +115,20 @@ describe("EventStoreService", () => {
     expect(serialized).not.toContain("evidencia-demo");
   });
 
+  it("includes the assigned distributor name when listing tickets", async () => {
+    const store = new EventStoreService();
+
+    await expect(store.listTickets("evt_demo")).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "VIP-001",
+          distributorId: "dst_demo_1",
+          distributorName: "Equipo Comercial"
+        })
+      ])
+    );
+  });
+
   it("does not allow check-in before payment approval", async () => {
     const store = new EventStoreService();
     const tickets = await store.createTicketBatch("evt_demo", {

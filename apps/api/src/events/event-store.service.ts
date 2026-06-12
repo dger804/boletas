@@ -35,6 +35,10 @@ const now = () => new Date().toISOString();
 
 const optionalDate = (value?: Date | null) => value?.toISOString();
 
+type PrismaTicketWithDistributor = PrismaTicket & {
+  distributor?: Pick<PrismaDistributor, "name"> | null;
+};
+
 @Injectable()
 export class EventStoreService {
   private readonly events: EventRecord[] = [
@@ -328,15 +332,23 @@ export class EventStoreService {
   async listTickets(eventId?: string) {
     if (this.prisma?.isConfigured()) {
       const tickets = await this.prisma.ticket.findMany({
+        include: {
+          distributor: {
+            select: {
+              name: true
+            }
+          }
+        },
         orderBy: { createdAt: "asc" },
         where: eventId ? { eventId } : undefined
       });
       return tickets.map(this.toTicketRecord);
     }
 
-    return eventId
+    const tickets = eventId
       ? this.tickets.filter((ticket) => ticket.eventId === eventId)
       : this.tickets;
+    return tickets.map((ticket) => this.withDistributorName(ticket));
   }
 
   async assignTicket(ticketId: string, dto: AssignTicketDto) {
@@ -729,7 +741,18 @@ export class EventStoreService {
     };
   }
 
-  private toTicketRecord(ticket: PrismaTicket): TicketRecord {
+  private withDistributorName(ticket: TicketRecord): TicketRecord {
+    const distributorName = ticket.distributorId
+      ? this.distributors.find((distributor) => distributor.id === ticket.distributorId)?.name
+      : undefined;
+
+    return {
+      ...ticket,
+      distributorName
+    };
+  }
+
+  private toTicketRecord(ticket: PrismaTicketWithDistributor): TicketRecord {
     return {
       id: ticket.id,
       eventId: ticket.eventId,
@@ -737,6 +760,7 @@ export class EventStoreService {
       price: ticket.price,
       status: ticket.status,
       distributorId: ticket.distributorId ?? undefined,
+      distributorName: ticket.distributor?.name,
       recipientName: ticket.recipientName ?? undefined,
       buyerName: ticket.buyerName ?? undefined,
       buyerPhone: ticket.buyerPhone ?? undefined,

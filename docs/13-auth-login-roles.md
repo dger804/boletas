@@ -215,6 +215,13 @@ GET /api/tickets?eventId=ID_DEL_EVENTO
 Authorization: Bearer <token>
 ```
 
+El inventario separa dos conceptos:
+
+```txt
+Responsable -> persona o equipo asignado para vender la boleta.
+Titular     -> comprador o beneficiario final de la boleta.
+```
+
 Los usuarios `admin` tambien ven el formulario de creacion de lotes, que usa:
 
 ```txt
