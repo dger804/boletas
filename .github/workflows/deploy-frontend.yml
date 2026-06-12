@@ -68,7 +68,27 @@ jobs:
           fi
 
       - name: Deploy to Hostinger via FTPS
+        id: ftp-deploy
         if: steps.ftp-secrets.outputs.ready == 'true'
+        continue-on-error: true
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./apps/web/dist/
+          server-dir: ${{ secrets.HOSTINGER_FTP_SERVER_DIR }}
+          log-level: minimal
+          timeout: 300000
+
+      - name: Wait before FTPS retry
+        if: steps.ftp-secrets.outputs.ready == 'true' && steps.ftp-deploy.outcome == 'failure'
+        run: sleep 30
+
+      - name: Retry deploy to Hostinger via FTPS
+        if: steps.ftp-secrets.outputs.ready == 'true' && steps.ftp-deploy.outcome == 'failure'
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.HOSTINGER_FTP_SERVER }}
