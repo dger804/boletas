@@ -43,6 +43,7 @@ Rutas frontend actuales:
 /login      formulario de acceso
 /dashboard  tablero operativo con sesion en el navegador
 /events     gestion inicial de eventos
+/tickets    inventario de boletas por evento
 /users      administracion de usuarios para admin
 ```
 

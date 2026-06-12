@@ -194,6 +194,34 @@ Cada evento de la tabla abre el tablero con `eventId` en la URL:
 /dashboard?eventId=ID_DEL_EVENTO
 ```
 
+Tambien puede abrir directamente el inventario de boletas del evento:
+
+```txt
+/tickets?eventId=ID_DEL_EVENTO
+```
+
+## Gestionar boletas
+
+Los usuarios autenticados pueden entrar a:
+
+```txt
+https://boletas.corporacionceer.com/tickets
+```
+
+La pantalla permite seleccionar un evento y listar sus boletas con:
+
+```txt
+GET /api/tickets?eventId=ID_DEL_EVENTO
+Authorization: Bearer <token>
+```
+
+Los usuarios `admin` tambien ven el formulario de creacion de lotes, que usa:
+
+```txt
+POST /api/events/:eventId/tickets/batch
+Authorization: Bearer <token_admin>
+```
+
 ## Administrar usuarios
 
 Los usuarios `admin` pueden administrar cuentas desde el frontend:
@@ -316,8 +344,9 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Conectar vistas de boletas, pagos y entrada a los endpoints con rol.
-2. Agregar edicion de eventos.
-3. Agregar cambio de contrasena desde la pantalla de usuarios.
-4. Mejorar manejo visible de expiracion de sesion.
-5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Conectar ventas, pagos y entrada a los endpoints con rol.
+2. Agregar asignacion de boletas a distribuidores.
+3. Agregar edicion de eventos.
+4. Agregar cambio de contrasena desde la pantalla de usuarios.
+5. Mejorar manejo visible de expiracion de sesion.
+6. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
