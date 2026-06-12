@@ -36,7 +36,7 @@ const now = () => new Date().toISOString();
 const optionalDate = (value?: Date | null) => value?.toISOString();
 
 type PrismaTicketWithDistributor = PrismaTicket & {
-  distributor?: Pick<PrismaDistributor, "name"> | null;
+  distributor?: Pick<PrismaDistributor, "email" | "name" | "notes" | "phone"> | null;
 };
 
 @Injectable()
@@ -335,7 +335,10 @@ export class EventStoreService {
         include: {
           distributor: {
             select: {
-              name: true
+              email: true,
+              name: true,
+              notes: true,
+              phone: true
             }
           }
         },
@@ -348,7 +351,7 @@ export class EventStoreService {
     const tickets = eventId
       ? this.tickets.filter((ticket) => ticket.eventId === eventId)
       : this.tickets;
-    return tickets.map((ticket) => this.withDistributorName(ticket));
+    return tickets.map((ticket) => this.withDistributorContact(ticket));
   }
 
   async assignTicket(ticketId: string, dto: AssignTicketDto) {
@@ -741,14 +744,17 @@ export class EventStoreService {
     };
   }
 
-  private withDistributorName(ticket: TicketRecord): TicketRecord {
-    const distributorName = ticket.distributorId
-      ? this.distributors.find((distributor) => distributor.id === ticket.distributorId)?.name
+  private withDistributorContact(ticket: TicketRecord): TicketRecord {
+    const distributor = ticket.distributorId
+      ? this.distributors.find((item) => item.id === ticket.distributorId)
       : undefined;
 
     return {
       ...ticket,
-      distributorName
+      distributorEmail: distributor?.email,
+      distributorName: distributor?.name,
+      distributorNotes: distributor?.notes,
+      distributorPhone: distributor?.phone
     };
   }
 
@@ -760,7 +766,10 @@ export class EventStoreService {
       price: ticket.price,
       status: ticket.status,
       distributorId: ticket.distributorId ?? undefined,
+      distributorEmail: ticket.distributor?.email ?? undefined,
       distributorName: ticket.distributor?.name,
+      distributorNotes: ticket.distributor?.notes ?? undefined,
+      distributorPhone: ticket.distributor?.phone,
       recipientName: ticket.recipientName ?? undefined,
       buyerName: ticket.buyerName ?? undefined,
       buyerPhone: ticket.buyerPhone ?? undefined,

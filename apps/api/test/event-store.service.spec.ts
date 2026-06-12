@@ -115,7 +115,7 @@ describe("EventStoreService", () => {
     expect(serialized).not.toContain("evidencia-demo");
   });
 
-  it("includes the assigned distributor name when listing tickets", async () => {
+  it("includes the assigned distributor contact when listing tickets", async () => {
     const store = new EventStoreService();
 
     await expect(store.listTickets("evt_demo")).resolves.toEqual(
@@ -123,10 +123,72 @@ describe("EventStoreService", () => {
         expect.objectContaining({
           code: "VIP-001",
           distributorId: "dst_demo_1",
-          distributorName: "Equipo Comercial"
+          distributorEmail: "ventas@example.com",
+          distributorName: "Equipo Comercial",
+          distributorPhone: "+57 300 000 0000"
         })
       ])
     );
+  });
+
+  it("selects distributor contact fields when listing tickets from Prisma", async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        buyerName: null,
+        buyerPhone: null,
+        capitalizationAmount: 15000,
+        checkedInBy: null,
+        code: "VIP-010",
+        createdAt: new Date("2026-05-29T00:00:00.000Z"),
+        distributor: {
+          email: "ana@example.com",
+          name: "Ana Responsable",
+          notes: "Zona norte",
+          phone: "+57 310 000 0000"
+        },
+        distributorId: "dst_db",
+        eventId: "evt_db",
+        id: "tck_db",
+        notes: null,
+        paidAt: null,
+        paymentMethod: null,
+        price: 90000,
+        recipientName: null,
+        soldAt: null,
+        status: "assigned",
+        updatedAt: new Date("2026-05-29T00:00:00.000Z"),
+        usedAt: null
+      }
+    ]);
+    const prisma = {
+      isConfigured: () => true,
+      ticket: { findMany }
+    } as unknown as PrismaService;
+    const store = new EventStoreService(prisma);
+
+    await expect(store.listTickets("evt_db")).resolves.toMatchObject([
+      {
+        code: "VIP-010",
+        distributorEmail: "ana@example.com",
+        distributorName: "Ana Responsable",
+        distributorNotes: "Zona norte",
+        distributorPhone: "+57 310 000 0000"
+      }
+    ]);
+    expect(findMany).toHaveBeenCalledWith({
+      include: {
+        distributor: {
+          select: {
+            email: true,
+            name: true,
+            notes: true,
+            phone: true
+          }
+        }
+      },
+      orderBy: { createdAt: "asc" },
+      where: { eventId: "evt_db" }
+    });
   });
 
   it("does not allow check-in before payment approval", async () => {

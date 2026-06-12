@@ -2,10 +2,15 @@
 import {
   CalendarDays,
   LogOut,
+  Mail,
+  NotebookText,
+  Phone,
   Plus,
   RefreshCw,
   ShieldCheck,
-  Ticket
+  Ticket,
+  UserRound,
+  X
 } from "lucide-astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
@@ -60,6 +65,9 @@ const ticketsUrl = `${apiBase}/tickets`;
       status: TicketStatus;
       distributorId?: string;
       distributorName?: string;
+      distributorPhone?: string;
+      distributorEmail?: string;
+      distributorNotes?: string;
       recipientName?: string;
       buyerName?: string;
       buyerPhone?: string;
@@ -205,13 +213,12 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
 
       const ticket = value as Partial<TicketRecord>;
+      const optionalStringIsValid = (field: unknown) =>
+        typeof field === "undefined" || typeof field === "string";
       const paymentMethodIsValid =
         typeof ticket.paymentMethod === "undefined" ||
         (typeof ticket.paymentMethod === "string" &&
           allowedPaymentMethods.has(ticket.paymentMethod));
-      const distributorNameIsValid =
-        typeof ticket.distributorName === "undefined" ||
-        typeof ticket.distributorName === "string";
 
       return (
         typeof ticket.id === "string" &&
@@ -222,7 +229,10 @@ const ticketsUrl = `${apiBase}/tickets`;
         allowedTicketStatuses.has(ticket.status) &&
         typeof ticket.capitalizationAmount === "number" &&
         typeof ticket.createdAt === "string" &&
-        distributorNameIsValid &&
+        optionalStringIsValid(ticket.distributorName) &&
+        optionalStringIsValid(ticket.distributorPhone) &&
+        optionalStringIsValid(ticket.distributorEmail) &&
+        optionalStringIsValid(ticket.distributorNotes) &&
         paymentMethodIsValid
       );
     };
@@ -497,6 +507,101 @@ const ticketsUrl = `${apiBase}/tickets`;
       setStatus(`Venta preparada para ${ticket.code}.`);
     };
 
+    const hideResponsibleDetails = () => {
+      const dialog = document.querySelector<HTMLElement>("[data-responsible-dialog]");
+      dialog?.classList.add("hidden");
+      dialog?.setAttribute("aria-hidden", "true");
+    };
+
+    const setResponsibleText = (selector: string, value: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+
+      if (element) {
+        element.textContent = value;
+      }
+    };
+
+    const setResponsibleLink = (selector: string, value: string, href: string) => {
+      const link = document.querySelector<HTMLAnchorElement>(selector);
+
+      if (!link) {
+        return;
+      }
+
+      link.textContent = value;
+      link.href = href;
+      link.classList.add("inline-flex");
+      link.classList.remove("hidden");
+    };
+
+    const clearResponsibleLink = (selector: string) => {
+      const link = document.querySelector<HTMLAnchorElement>(selector);
+
+      if (!link) {
+        return;
+      }
+
+      link.textContent = "";
+      link.removeAttribute("href");
+      link.classList.remove("inline-flex");
+      link.classList.add("hidden");
+    };
+
+    const showResponsibleDetails = (ticketId: string) => {
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      const dialog = document.querySelector<HTMLElement>("[data-responsible-dialog]");
+      const closeButton = document.querySelector<HTMLButtonElement>(
+        "[data-close-responsible-details]"
+      );
+      const name =
+        ticket.distributorName?.trim() ||
+        (ticket.distributorId ? "Responsable asignado" : "Sin responsable");
+      const phone = ticket.distributorPhone?.trim() ?? "";
+      const email = ticket.distributorEmail?.trim() ?? "";
+      const notes = ticket.distributorNotes?.trim() ?? "";
+
+      setResponsibleText("[data-responsible-name]", name);
+      setResponsibleText("[data-responsible-ticket]", `Boleta ${ticket.code}`);
+      setResponsibleText(
+        "[data-responsible-phone]",
+        phone || "Sin telefono registrado"
+      );
+      setResponsibleText(
+        "[data-responsible-email]",
+        email || "Sin correo registrado"
+      );
+      setResponsibleText(
+        "[data-responsible-notes]",
+        notes || "Sin notas registradas"
+      );
+
+      if (phone) {
+        setResponsibleLink(
+          "[data-responsible-call]",
+          "Llamar",
+          `tel:${phone.replace(/[^\d+]/g, "")}`
+        );
+      } else {
+        clearResponsibleLink("[data-responsible-call]");
+      }
+
+      if (email) {
+        setResponsibleLink("[data-responsible-mail]", "Escribir", `mailto:${email}`);
+      } else {
+        clearResponsibleLink("[data-responsible-mail]");
+      }
+
+      dialog?.classList.remove("hidden");
+      dialog?.setAttribute("aria-hidden", "false");
+      closeButton?.focus();
+    };
+
     const renderTickets = (tickets: TicketRecord[]) => {
       const body = document.querySelector<HTMLElement>("[data-tickets-body]");
       const count = document.querySelector<HTMLElement>("[data-tickets-count]");
@@ -543,8 +648,25 @@ const ticketsUrl = `${apiBase}/tickets`;
             ticket.recipientName ??
             "Sin titular";
           const responsible =
-            ticket.distributorName ??
+            ticket.distributorName?.trim() ||
             (ticket.distributorId ? "Responsable asignado" : "Sin responsable");
+          const responsibleCell = ticket.distributorId
+            ? `
+              <button
+                class="group inline-flex max-w-56 flex-col items-start text-left"
+                data-show-responsible="${escapeHtml(ticket.id)}"
+                title="Ver contacto del responsable"
+                type="button"
+              >
+                <span class="max-w-56 truncate font-medium text-zinc-900 underline-offset-4 group-hover:underline">
+                  ${escapeHtml(responsible)}
+                </span>
+                <span class="text-xs text-zinc-400 group-hover:text-zinc-600">
+                  Ver contacto
+                </span>
+              </button>
+            `
+            : `<span class="text-zinc-500">${escapeHtml(responsible)}</span>`;
           const paymentMethod = ticket.paymentMethod
             ? paymentMethodLabels[ticket.paymentMethod]
             : "Sin pago";
@@ -566,7 +688,7 @@ const ticketsUrl = `${apiBase}/tickets`;
                 ${escapeHtml(ticket.code)}
               </td>
               <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
-                ${escapeHtml(responsible)}
+                ${responsibleCell}
               </td>
               <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
                 ${escapeHtml(holder)}
@@ -682,7 +804,21 @@ const ticketsUrl = `${apiBase}/tickets`;
         });
 
       document.querySelector("[data-tickets-body]")?.addEventListener("click", (event) => {
-        const target = event.target as HTMLElement;
+        const target = event.target;
+
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const responsibleButton = target.closest<HTMLButtonElement>(
+          "[data-show-responsible]"
+        );
+
+        if (responsibleButton?.dataset.showResponsible) {
+          showResponsibleDetails(responsibleButton.dataset.showResponsible);
+          return;
+        }
+
         const saleButton = target.closest<HTMLButtonElement>("[data-select-ticket-sale]");
 
         if (!saleButton?.dataset.selectTicketSale) {
@@ -690,6 +826,24 @@ const ticketsUrl = `${apiBase}/tickets`;
         }
 
         selectTicketForSale(saleButton.dataset.selectTicketSale);
+      });
+
+      document.querySelectorAll("[data-close-responsible-details]").forEach((button) => {
+        button.addEventListener("click", hideResponsibleDetails);
+      });
+
+      document
+        .querySelector("[data-responsible-dialog]")
+        ?.addEventListener("click", (event) => {
+          if (event.target === event.currentTarget) {
+            hideResponsibleDetails();
+          }
+        });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          hideResponsibleDetails();
+        }
       });
     };
 
@@ -1172,5 +1326,82 @@ const ticketsUrl = `${apiBase}/tickets`;
         </section>
       </div>
     </main>
+  </div>
+
+  <div
+    aria-hidden="true"
+    aria-labelledby="responsible-dialog-title"
+    aria-modal="true"
+    class="fixed inset-0 z-50 hidden bg-zinc-950/40 px-4 py-6 backdrop-blur-sm"
+    data-responsible-dialog
+    role="dialog"
+  >
+    <div class="mx-auto flex min-h-full max-w-lg items-center">
+      <section class="w-full rounded-lg border border-zinc-200 bg-white shadow-xl">
+        <header class="flex items-start justify-between gap-4 border-b border-zinc-200 p-5">
+          <div class="flex gap-3">
+            <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-zinc-950 text-white">
+              <UserRound size={18} />
+            </span>
+            <div>
+              <p class="text-xs font-medium uppercase text-zinc-500" data-responsible-ticket>
+                Boleta
+              </p>
+              <h2 class="mt-1 text-lg font-semibold text-zinc-950" data-responsible-name id="responsible-dialog-title">
+                Responsable
+              </h2>
+            </div>
+          </div>
+          <button
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+            data-close-responsible-details
+            title="Cerrar"
+            type="button"
+          >
+            <X size={17} />
+          </button>
+        </header>
+
+        <div class="grid gap-4 p-5">
+          <div class="flex gap-3">
+            <Phone class="mt-0.5 text-zinc-400" size={17} />
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium uppercase text-zinc-500">Telefono</p>
+              <p class="mt-1 break-words text-sm font-medium text-zinc-950" data-responsible-phone>
+                Sin telefono registrado
+              </p>
+            </div>
+            <a
+              class="hidden h-9 items-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-responsible-call
+            ></a>
+          </div>
+
+          <div class="flex gap-3">
+            <Mail class="mt-0.5 text-zinc-400" size={17} />
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium uppercase text-zinc-500">Correo</p>
+              <p class="mt-1 break-words text-sm font-medium text-zinc-950" data-responsible-email>
+                Sin correo registrado
+              </p>
+            </div>
+            <a
+              class="hidden h-9 items-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-responsible-mail
+            ></a>
+          </div>
+
+          <div class="flex gap-3">
+            <NotebookText class="mt-0.5 text-zinc-400" size={17} />
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium uppercase text-zinc-500">Notas</p>
+              <p class="mt-1 whitespace-pre-wrap break-words text-sm text-zinc-700" data-responsible-notes>
+                Sin notas registradas
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </BaseLayout>

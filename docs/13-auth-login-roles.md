@@ -222,6 +222,16 @@ Responsable -> persona o equipo asignado para vender la boleta.
 Titular     -> comprador o beneficiario final de la boleta.
 ```
 
+En el inventario autenticado, `Responsable` muestra el nombre del distribuidor o encargado asignado. Al hacer clic se abre el detalle de contacto disponible:
+
+```txt
+telefono
+correo
+notas
+```
+
+Estos datos salen de la tabla `distributors` y no se publican en la ruta sanitizada `GET /api/public/events/:eventId/dashboard`.
+
 Los usuarios `admin` tambien ven el formulario de creacion de lotes, que usa:
 
 ```txt

@@ -79,6 +79,9 @@ export interface TicketRecord {
   status: TicketStatus;
   distributorId?: string;
   distributorName?: string;
+  distributorPhone?: string;
+  distributorEmail?: string;
+  distributorNotes?: string;
   recipientName?: string;
   buyerName?: string;
   buyerPhone?: string;
