@@ -46,8 +46,13 @@ describe("EventsController", () => {
       ROLES_KEY,
       EventsController.prototype.getSummary
     );
+    const distributorRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      EventsController.prototype.listDistributors
+    );
 
     expect(fullDashboardRoles).toEqual(["supervisor", "admin"]);
     expect(summaryRoles).toEqual(["regular", "supervisor", "admin"]);
+    expect(distributorRoles).toEqual(["supervisor", "admin"]);
   });
 });

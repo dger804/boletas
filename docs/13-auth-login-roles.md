@@ -146,6 +146,7 @@ GET   /api/events                         regular, supervisor, admin
 POST  /api/events                         admin
 GET   /api/events/:eventId/summary        regular, supervisor, admin
 GET   /api/events/:eventId/dashboard      supervisor, admin
+GET   /api/events/:eventId/distributors   supervisor, admin
 POST  /api/events/:eventId/distributors   supervisor, admin
 POST  /api/events/:eventId/tickets/batch  admin
 
@@ -231,6 +232,22 @@ notas
 ```
 
 Estos datos salen de la tabla `distributors` y no se publican en la ruta sanitizada `GET /api/public/events/:eventId/dashboard`.
+
+Los usuarios `supervisor` y `admin` tambien pueden gestionar responsables desde esta pantalla:
+
+```txt
+GET  /api/events/:eventId/distributors
+POST /api/events/:eventId/distributors
+```
+
+Desde la tabla de inventario, las boletas `available`, `assigned` o `reserved` muestran la accion `Asignar`. Esa accion prepara el formulario lateral para escoger responsable y guardar:
+
+```txt
+PATCH /api/tickets/:ticketId/assign
+Authorization: Bearer <token_supervisor_o_admin>
+```
+
+La API bloquea reasignar boletas `sold`, `paid`, `used` o `void`, porque cambiar responsable en esos estados podria borrar trazabilidad operativa de ventas, pagos o ingreso.
 
 Los usuarios `admin` tambien ven el formulario de creacion de lotes, que usa:
 
@@ -373,8 +390,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 ## Pendientes
 
 1. Conectar validacion de pagos y entrada a los endpoints con rol.
-2. Agregar asignacion de boletas a distribuidores.
-3. Agregar edicion de eventos.
-4. Agregar cambio de contrasena desde la pantalla de usuarios.
-5. Mejorar manejo visible de expiracion de sesion.
-6. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+2. Agregar edicion de eventos.
+3. Agregar cambio de contrasena desde la pantalla de usuarios.
+4. Mejorar manejo visible de expiracion de sesion.
+5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.

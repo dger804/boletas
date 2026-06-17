@@ -38,6 +38,12 @@ export class EventsController {
   }
 
   @Roles("supervisor", "admin")
+  @Get(":eventId/distributors")
+  listDistributors(@Param("eventId") eventId: string) {
+    return this.store.listDistributors(eventId);
+  }
+
+  @Roles("supervisor", "admin")
   @Post(":eventId/distributors")
   addDistributor(
     @Param("eventId") eventId: string,

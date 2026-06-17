@@ -26,6 +26,7 @@ listEvents
 createEvent
 getEventDashboard
 addDistributor
+listDistributors
 createTicketBatch
 listTickets
 assignTicket
@@ -42,6 +43,7 @@ GET    /api/events
 POST   /api/events
 GET    /api/events/:eventId/summary
 GET    /api/events/:eventId/dashboard
+GET    /api/events/:eventId/distributors
 POST   /api/events/:eventId/distributors
 POST   /api/events/:eventId/tickets/batch
 GET    /api/tickets

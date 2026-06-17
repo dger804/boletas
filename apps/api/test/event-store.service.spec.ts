@@ -64,6 +64,8 @@ describe("EventStoreService", () => {
       recipientName: "Comprador Potencial"
     });
     expect(assigned.status).toBe("assigned");
+    expect(assigned.distributorName).toBe("Equipo Comercial");
+    expect(assigned.distributorPhone).toBe("+57 300 000 0000");
 
     const sale = await store.registerSale(ticket.id, {
       amount: 90000,
@@ -126,6 +128,21 @@ describe("EventStoreService", () => {
           distributorEmail: "ventas@example.com",
           distributorName: "Equipo Comercial",
           distributorPhone: "+57 300 000 0000"
+        })
+      ])
+    );
+  });
+
+  it("lists distributors for an event", async () => {
+    const store = new EventStoreService();
+
+    await expect(store.listDistributors("evt_demo")).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: "ventas@example.com",
+          id: "dst_demo_1",
+          name: "Equipo Comercial",
+          phone: "+57 300 000 0000"
         })
       ])
     );
@@ -237,6 +254,34 @@ describe("EventStoreService", () => {
         amount: 90000,
         buyerName: "Comprador Duplicado",
         method: "cash"
+      })
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("does not allow assigning a ticket after sale", async () => {
+    const store = new EventStoreService();
+    const distributor = await store.addDistributor("evt_demo", {
+      name: "Responsable Test",
+      phone: "+57 320 000 0000"
+    });
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const ticket = tickets[0];
+    if (!ticket) {
+      throw new Error("ticket was not created");
+    }
+
+    await store.registerSale(ticket.id, {
+      amount: 90000,
+      buyerName: "Comprador Test",
+      method: "cash"
+    });
+
+    await expect(
+      store.assignTicket(ticket.id, {
+        distributorId: distributor.id
       })
     ).rejects.toBeInstanceOf(BadRequestException);
   });

@@ -269,6 +269,22 @@ export class EventStoreService {
     return distributor;
   }
 
+  async listDistributors(eventId: string) {
+    if (this.prisma?.isConfigured()) {
+      await this.findPrismaEvent(eventId);
+
+      const distributors = await this.prisma.distributor.findMany({
+        orderBy: { createdAt: "asc" },
+        where: { eventId }
+      });
+
+      return distributors.map(this.toDistributorRecord);
+    }
+
+    this.findEvent(eventId);
+    return this.distributors.filter((distributor) => distributor.eventId === eventId);
+  }
+
   async createTicketBatch(eventId: string, dto: CreateTicketBatchDto) {
     if (this.prisma?.isConfigured()) {
       await this.findPrismaEvent(eventId);
@@ -361,6 +377,8 @@ export class EventStoreService {
         this.findPrismaDistributor(dto.distributorId)
       ]);
 
+      this.assertTicketCanBeAssigned(ticket.status);
+
       if (ticket.eventId !== distributor.eventId) {
         throw new BadRequestException("ticket and distributor belong to different events");
       }
@@ -372,6 +390,16 @@ export class EventStoreService {
           recipientName: dto.recipientName,
           status: "assigned"
         },
+        include: {
+          distributor: {
+            select: {
+              email: true,
+              name: true,
+              notes: true,
+              phone: true
+            }
+          }
+        },
         where: { id: ticket.id }
       });
 
@@ -380,6 +408,8 @@ export class EventStoreService {
 
     const ticket = this.findTicket(ticketId);
     const distributor = this.findDistributor(dto.distributorId);
+
+    this.assertTicketCanBeAssigned(ticket.status);
 
     if (ticket.eventId !== distributor.eventId) {
       throw new BadRequestException("ticket and distributor belong to different events");
@@ -390,7 +420,7 @@ export class EventStoreService {
     ticket.notes = dto.notes ?? ticket.notes;
     ticket.status = "assigned";
 
-    return ticket;
+    return this.withDistributorContact(ticket);
   }
 
   async registerSale(ticketId: string, dto: RegisterSaleDto) {
@@ -666,6 +696,12 @@ export class EventStoreService {
     };
 
     return details[status];
+  }
+
+  private assertTicketCanBeAssigned(status: TicketStatus) {
+    if (["paid", "sold", "used", "void"].includes(status)) {
+      throw new BadRequestException("ticket cannot be assigned in its current status");
+    }
   }
 
   private findTicket(ticketId: string) {

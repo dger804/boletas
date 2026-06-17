@@ -57,6 +57,16 @@ const ticketsUrl = `${apiBase}/tickets`;
       createdAt: string;
     }
 
+    interface DistributorRecord {
+      id: string;
+      eventId: string;
+      name: string;
+      phone: string;
+      email?: string;
+      notes?: string;
+      createdAt: string;
+    }
+
     interface TicketRecord {
       id: string;
       eventId: string;
@@ -126,7 +136,9 @@ const ticketsUrl = `${apiBase}/tickets`;
     };
 
     let authToken = "";
+    let currentUser: StoredUser | null = null;
     let currentEvents: EventRecord[] = [];
+    let currentDistributors: DistributorRecord[] = [];
     let currentTickets: TicketRecord[] = [];
     let selectedTicketId = "";
     let selectedEventId = new URLSearchParams(window.location.search)
@@ -207,6 +219,26 @@ const ticketsUrl = `${apiBase}/tickets`;
       );
     };
 
+    const isDistributorRecord = (value: unknown): value is DistributorRecord => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const distributor = value as Partial<DistributorRecord>;
+      const optionalStringIsValid = (field: unknown) =>
+        typeof field === "undefined" || typeof field === "string";
+
+      return (
+        typeof distributor.id === "string" &&
+        typeof distributor.eventId === "string" &&
+        typeof distributor.name === "string" &&
+        typeof distributor.phone === "string" &&
+        typeof distributor.createdAt === "string" &&
+        optionalStringIsValid(distributor.email) &&
+        optionalStringIsValid(distributor.notes)
+      );
+    };
+
     const isTicketRecord = (value: unknown): value is TicketRecord => {
       if (!value || typeof value !== "object") {
         return false;
@@ -276,6 +308,8 @@ const ticketsUrl = `${apiBase}/tickets`;
         .replace(/'/g, "&#039;");
 
     const renderUser = (user: StoredUser) => {
+      currentUser = user;
+
       document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
         element.textContent = user.name;
       });
@@ -292,6 +326,10 @@ const ticketsUrl = `${apiBase}/tickets`;
     const renderAdminOnly = (user: StoredUser) => {
       document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
         element.classList.toggle("hidden", user.role !== "admin");
+      });
+
+      document.querySelectorAll<HTMLElement>("[data-manager-only]").forEach((element) => {
+        element.classList.toggle("hidden", !["admin", "supervisor"].includes(user.role));
       });
     };
 
@@ -397,7 +435,13 @@ const ticketsUrl = `${apiBase}/tickets`;
     const getSelectedEvent = () =>
       currentEvents.find((event) => event.id === selectedEventId) ?? currentEvents[0] ?? null;
 
+    const canManageTickets = () =>
+      currentUser?.role === "admin" || currentUser?.role === "supervisor";
+
     const isSaleableTicket = (ticket: TicketRecord) =>
+      ["assigned", "available", "reserved"].includes(ticket.status);
+
+    const isAssignableTicket = (ticket: TicketRecord) =>
       ["assigned", "available", "reserved"].includes(ticket.status);
 
     const getSelectedTicket = () =>
@@ -419,6 +463,9 @@ const ticketsUrl = `${apiBase}/tickets`;
     const renderEventOptions = () => {
       const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
       const batchEventName = document.querySelector<HTMLElement>("[data-batch-event-name]");
+      const responsibleEventNames = document.querySelectorAll<HTMLElement>(
+        "[data-responsible-event-name]"
+      );
 
       if (!selector) {
         return;
@@ -430,6 +477,9 @@ const ticketsUrl = `${apiBase}/tickets`;
         if (batchEventName) {
           batchEventName.textContent = "Selecciona un evento";
         }
+        responsibleEventNames.forEach((element) => {
+          element.textContent = "Selecciona un evento";
+        });
         return;
       }
 
@@ -448,6 +498,10 @@ const ticketsUrl = `${apiBase}/tickets`;
       if (batchEventName) {
         batchEventName.textContent = getSelectedEvent()?.name ?? "Selecciona un evento";
       }
+
+      responsibleEventNames.forEach((element) => {
+        element.textContent = getSelectedEvent()?.name ?? "Selecciona un evento";
+      });
     };
 
     const updateSalePanel = () => {
@@ -489,6 +543,88 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
     };
 
+    const renderDistributors = () => {
+      const count = document.querySelector<HTMLElement>("[data-distributors-count]");
+      const list = document.querySelector<HTMLElement>("[data-distributors-list]");
+      const selector = document.querySelector<HTMLSelectElement>(
+        "[data-assignment-distributor]"
+      );
+
+      if (count) {
+        count.textContent = `${currentDistributors.length}`;
+      }
+
+      if (selector) {
+        if (currentDistributors.length === 0) {
+          selector.innerHTML = `<option value="">Sin responsables</option>`;
+          selector.disabled = true;
+        } else {
+          selector.disabled = false;
+          selector.innerHTML = currentDistributors
+            .map(
+              (distributor) =>
+                `<option value="${escapeHtml(distributor.id)}">${escapeHtml(distributor.name)}</option>`
+            )
+            .join("");
+        }
+      }
+
+      if (!list) {
+        return;
+      }
+
+      if (currentDistributors.length === 0) {
+        list.innerHTML = `
+          <li class="rounded-md border border-dashed border-zinc-200 px-3 py-3 text-sm text-zinc-500">
+            Sin responsables creados para este evento
+          </li>
+        `;
+        return;
+      }
+
+      list.innerHTML = currentDistributors
+        .map(
+          (distributor) => `
+            <li class="rounded-md border border-zinc-100 px-3 py-3">
+              <p class="truncate text-sm font-semibold text-zinc-950">
+                ${escapeHtml(distributor.name)}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                ${escapeHtml(distributor.phone)}
+              </p>
+            </li>
+          `
+        )
+        .join("");
+    };
+
+    const updateAssignmentPanel = () => {
+      const ticket = getSelectedTicket();
+      const selectedCode = document.querySelector<HTMLElement>("[data-assignment-ticket-code]");
+      const submitButton = document.querySelector<HTMLButtonElement>(
+        "[data-assign-ticket-submit]"
+      );
+
+      if (selectedCode) {
+        selectedCode.textContent = ticket
+          ? `Boleta ${ticket.code}`
+          : "Selecciona una boleta";
+      }
+
+      if (submitButton) {
+        submitButton.disabled =
+          !canManageTickets() ||
+          !ticket ||
+          !isAssignableTicket(ticket) ||
+          currentDistributors.length === 0;
+      }
+    };
+
+    const updateSelectedTicketPanels = () => {
+      updateSalePanel();
+      updateAssignmentPanel();
+    };
+
     const selectTicketForSale = (ticketId: string) => {
       const ticket = currentTickets.find((item) => item.id === ticketId);
 
@@ -503,8 +639,31 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
 
       selectedTicketId = ticket.id;
-      updateSalePanel();
+      updateSelectedTicketPanels();
       setStatus(`Venta preparada para ${ticket.code}.`);
+    };
+
+    const selectTicketForAssignment = (ticketId: string) => {
+      if (!canManageTickets()) {
+        setStatus("Tu rol no permite asignar responsables.", "error");
+        return;
+      }
+
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      if (!isAssignableTicket(ticket)) {
+        setStatus("Esta boleta ya no permite cambiar responsable.", "error");
+        return;
+      }
+
+      selectedTicketId = ticket.id;
+      updateSelectedTicketPanels();
+      setStatus(`Asignacion preparada para ${ticket.code}.`);
     };
 
     const hideResponsibleDetails = () => {
@@ -670,6 +829,18 @@ const ticketsUrl = `${apiBase}/tickets`;
           const paymentMethod = ticket.paymentMethod
             ? paymentMethodLabels[ticket.paymentMethod]
             : "Sin pago";
+          const assignButton =
+            canManageTickets() && isAssignableTicket(ticket)
+              ? `
+                <button
+                  class="inline-flex h-9 items-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  data-select-ticket-assignment="${escapeHtml(ticket.id)}"
+                  type="button"
+                >
+                  Asignar
+                </button>
+              `
+              : "";
           const saleButton = isSaleableTicket(ticket)
             ? `
               <button
@@ -681,6 +852,12 @@ const ticketsUrl = `${apiBase}/tickets`;
               </button>
             `
             : `<span class="text-xs text-zinc-400">No disponible</span>`;
+          const actionButtons = `
+            <div class="flex justify-end gap-2">
+              ${assignButton}
+              ${saleButton}
+            </div>
+          `;
 
           return `
             <tr class="align-top hover:bg-zinc-50">
@@ -711,12 +888,31 @@ const ticketsUrl = `${apiBase}/tickets`;
                 ${escapeHtml(formatDate(ticket.createdAt))}
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
-                ${saleButton}
+                ${actionButtons}
               </td>
             </tr>
           `;
         })
         .join("");
+    };
+
+    const loadDistributors = async () => {
+      const { eventsUrl } = getConfig();
+
+      if (!canManageTickets() || !eventsUrl || !selectedEventId) {
+        currentDistributors = [];
+        renderDistributors();
+        updateAssignmentPanel();
+        return;
+      }
+
+      const url = `${eventsUrl}/${encodeURIComponent(selectedEventId)}/distributors`;
+      const payload = await requestJson<unknown[]>(url);
+      currentDistributors = Array.isArray(payload)
+        ? payload.filter(isDistributorRecord)
+        : [];
+      renderDistributors();
+      updateAssignmentPanel();
     };
 
     const loadTickets = async () => {
@@ -729,9 +925,11 @@ const ticketsUrl = `${apiBase}/tickets`;
 
       if (!selectedEventId) {
         currentTickets = [];
+        currentDistributors = [];
         selectedTicketId = "";
         renderTickets([]);
-        updateSalePanel();
+        renderDistributors();
+        updateSelectedTicketPanels();
         setStatus("Selecciona un evento para ver sus boletas.");
         return;
       }
@@ -739,17 +937,40 @@ const ticketsUrl = `${apiBase}/tickets`;
       setStatus("Cargando boletas.");
 
       try {
+        let distributorsLoadFailed = false;
+
+        try {
+          await loadDistributors();
+        } catch (error) {
+          distributorsLoadFailed = true;
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible cargar responsables.",
+            "error"
+          );
+        }
+
         const url = `${ticketsUrl}?eventId=${encodeURIComponent(selectedEventId)}`;
         const payload = await requestJson<unknown[]>(url);
         const tickets = Array.isArray(payload) ? payload.filter(isTicketRecord) : [];
 
         currentTickets = tickets;
-        if (!currentTickets.some((ticket) => ticket.id === selectedTicketId && isSaleableTicket(ticket))) {
+        if (
+          !currentTickets.some(
+            (ticket) =>
+              ticket.id === selectedTicketId &&
+              (isSaleableTicket(ticket) || isAssignableTicket(ticket))
+          )
+        ) {
           selectedTicketId = "";
         }
         renderTickets(tickets);
-        updateSalePanel();
-        setStatus("Boletas actualizadas.", "success");
+        updateSelectedTicketPanels();
+        setStatus(
+          distributorsLoadFailed
+            ? "Boletas actualizadas, pero no fue posible cargar responsables."
+            : "Boletas actualizadas.",
+          distributorsLoadFailed ? "error" : "success"
+        );
       } catch (error) {
         setStatus(
           error instanceof Error ? error.message : "No fue posible cargar boletas.",
@@ -777,9 +998,11 @@ const ticketsUrl = `${apiBase}/tickets`;
           await loadTickets();
         } else {
           currentTickets = [];
+          currentDistributors = [];
           selectedTicketId = "";
           renderTickets([]);
-          updateSalePanel();
+          renderDistributors();
+          updateSelectedTicketPanels();
           setStatus("No hay eventos para consultar.");
         }
       } catch (error) {
@@ -819,6 +1042,15 @@ const ticketsUrl = `${apiBase}/tickets`;
           return;
         }
 
+        const assignmentButton = target.closest<HTMLButtonElement>(
+          "[data-select-ticket-assignment]"
+        );
+
+        if (assignmentButton?.dataset.selectTicketAssignment) {
+          selectTicketForAssignment(assignmentButton.dataset.selectTicketAssignment);
+          return;
+        }
+
         const saleButton = target.closest<HTMLButtonElement>("[data-select-ticket-sale]");
 
         if (!saleButton?.dataset.selectTicketSale) {
@@ -843,6 +1075,115 @@ const ticketsUrl = `${apiBase}/tickets`;
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           hideResponsibleDetails();
+        }
+      });
+    };
+
+    const bindCreateDistributorForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-create-distributor-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { eventsUrl } = getConfig();
+        const selectedEvent = getSelectedEvent();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!canManageTickets() || !eventsUrl || !selectedEvent) {
+          setStatus("Tu rol no permite crear responsables para este evento.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const email = String(formData.get("email") ?? "").trim();
+        const notes = String(formData.get("notes") ?? "").trim();
+        const payload = {
+          name: String(formData.get("name") ?? "").trim(),
+          phone: String(formData.get("phone") ?? "").trim(),
+          ...(email ? { email } : {}),
+          ...(notes ? { notes } : {})
+        };
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<DistributorRecord>(
+            `${eventsUrl}/${encodeURIComponent(selectedEvent.id)}/distributors`,
+            {
+              body: JSON.stringify(payload),
+              method: "POST"
+            }
+          );
+          form.reset();
+          setStatus("Responsable creado.", "success");
+          await loadDistributors();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible crear el responsable.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+        }
+      });
+    };
+
+    const bindAssignTicketForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-assign-ticket-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { ticketsUrl } = getConfig();
+        const ticket = getSelectedTicket();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!canManageTickets() || !ticketsUrl || !ticket) {
+          setStatus("Selecciona una boleta antes de asignar responsable.", "error");
+          return;
+        }
+
+        if (!isAssignableTicket(ticket)) {
+          setStatus("Esta boleta ya no permite cambiar responsable.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const distributorId = String(formData.get("distributorId") ?? "").trim();
+        const notes = String(formData.get("notes") ?? "").trim();
+        const recipientName = String(formData.get("recipientName") ?? "").trim();
+
+        if (!distributorId) {
+          setStatus("Selecciona un responsable.", "error");
+          return;
+        }
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<TicketRecord>(
+            `${ticketsUrl}/${encodeURIComponent(ticket.id)}/assign`,
+            {
+              body: JSON.stringify({
+                distributorId,
+                ...(notes ? { notes } : {}),
+                ...(recipientName ? { recipientName } : {})
+              }),
+              method: "PATCH"
+            }
+          );
+          form.reset();
+          selectedTicketId = "";
+          setStatus("Responsable asignado a la boleta.", "success");
+          await loadTickets();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible asignar responsable.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+          updateSelectedTicketPanels();
         }
       });
     };
@@ -953,7 +1294,7 @@ const ticketsUrl = `${apiBase}/tickets`;
           );
         } finally {
           submitButton?.removeAttribute("disabled");
-          updateSalePanel();
+          updateSelectedTicketPanels();
         }
       });
     };
@@ -972,6 +1313,8 @@ const ticketsUrl = `${apiBase}/tickets`;
           renderUser(user);
           bindLogout();
           bindTicketActions();
+          bindCreateDistributorForm();
+          bindAssignTicketForm();
           bindCreateBatchForm();
           bindRegisterSaleForm();
         });
@@ -1215,6 +1558,134 @@ const ticketsUrl = `${apiBase}/tickets`;
                   type="submit"
                 >
                   Registrar venta
+                </button>
+              </form>
+            </section>
+
+            <section class="hidden rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" data-manager-only>
+              <div class="flex items-center gap-3">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
+                  <UserRound size={18} />
+                </span>
+                <div>
+                  <h2 class="text-sm font-semibold text-zinc-950">Responsables</h2>
+                  <p class="mt-1 text-xs text-zinc-500" data-responsible-event-name>Selecciona un evento</p>
+                </div>
+              </div>
+
+              <div class="mt-4 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2">
+                <p class="text-xs font-medium uppercase text-zinc-500">Creados</p>
+                <p class="mt-1 text-xl font-semibold text-zinc-950" data-distributors-count>0</p>
+              </div>
+
+              <ul class="mt-3 grid max-h-48 gap-2 overflow-y-auto" data-distributors-list>
+                <li class="rounded-md border border-dashed border-zinc-200 px-3 py-3 text-sm text-zinc-500">
+                  Sin responsables cargados
+                </li>
+              </ul>
+
+              <form class="mt-5 grid gap-4" data-create-distributor-form>
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Nombre</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="120"
+                    name="name"
+                    required
+                    type="text"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Telefono</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="40"
+                    name="phone"
+                    required
+                    type="tel"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Correo</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="160"
+                    name="email"
+                    type="email"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Notas</span>
+                  <textarea
+                    class="min-h-20 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                    maxlength="500"
+                    name="notes"
+                  ></textarea>
+                </label>
+
+                <button
+                  class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="submit"
+                >
+                  Crear responsable
+                </button>
+              </form>
+            </section>
+
+            <section class="hidden rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" data-manager-only>
+              <div class="flex items-center gap-3">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-sky-600 text-white">
+                  <Ticket size={18} />
+                </span>
+                <div>
+                  <h2 class="text-sm font-semibold text-zinc-950">Asignar responsable</h2>
+                  <p class="mt-1 text-xs text-zinc-500" data-assignment-ticket-code>Selecciona una boleta</p>
+                </div>
+              </div>
+
+              <form class="mt-5 grid gap-4" data-assign-ticket-form>
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Responsable</span>
+                  <select
+                    class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500 disabled:bg-zinc-100"
+                    data-assignment-distributor
+                    name="distributorId"
+                    required
+                  >
+                    <option value="">Sin responsables</option>
+                  </select>
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Titular sugerido</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="120"
+                    name="recipientName"
+                    placeholder="Opcional"
+                    type="text"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Notas</span>
+                  <textarea
+                    class="min-h-20 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                    maxlength="500"
+                    name="notes"
+                  ></textarea>
+                </label>
+
+                <button
+                  class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-assign-ticket-submit
+                  disabled
+                  type="submit"
+                >
+                  Asignar responsable
                 </button>
               </form>
             </section>
