@@ -289,6 +289,10 @@ const ticketsUrl = `${apiBase}/tickets`;
       document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
         element.classList.toggle("hidden", user.role !== "admin");
       });
+
+      document.querySelectorAll<HTMLElement>("[data-manager-only]").forEach((element) => {
+        element.classList.toggle("hidden", !["admin", "supervisor"].includes(user.role));
+      });
     };
 
     const bindLogout = () => {
@@ -809,7 +813,7 @@ const ticketsUrl = `${apiBase}/tickets`;
           <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/check-in">
             Entrada
           </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/payments">
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-manager-only href="/payments">
             Pagos
           </a>
         </nav>

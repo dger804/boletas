@@ -370,6 +370,8 @@ El propio frontend valida `/api/auth/me`; si el usuario autenticado no es `admin
 
 El enlace `Usuarios` en el tablero tambien queda oculto por defecto y solo se muestra despues de confirmar con la API que la sesion pertenece a un `admin`.
 
+El enlace `Pagos` queda oculto por defecto y solo se muestra despues de confirmar con la API que la sesion pertenece a `supervisor` o `admin`, porque los usuarios `regular` no pueden listar ni validar evidencias.
+
 La API que respalda esta pantalla es:
 
 ```txt
