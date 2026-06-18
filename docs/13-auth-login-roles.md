@@ -267,6 +267,39 @@ La venta exige comprador, metodo y valor recibido. Referencia, telefono, URL de 
 
 La API bloquea registrar una segunda venta sobre boletas `sold`, `paid`, `used` o `void` para evitar evidencias duplicadas sobre la misma boleta.
 
+## Gestionar pagos
+
+Los usuarios `supervisor` y `admin` pueden validar evidencias desde:
+
+```txt
+https://boletas.corporacionceer.com/payments
+```
+
+La pantalla permite seleccionar un evento y listar sus evidencias con:
+
+```txt
+GET /api/payments?eventId=ID_DEL_EVENTO
+Authorization: Bearer <token_supervisor_o_admin>
+```
+
+La respuesta incluye resumen operativo de la boleta asociada cuando esta disponible:
+
+```txt
+ticketCode
+ticketBuyerName
+ticketBuyerPhone
+ticketStatus
+```
+
+Desde la misma pantalla se puede aprobar o rechazar una evidencia pendiente:
+
+```txt
+PATCH /api/payments/:paymentId/verify
+Authorization: Bearer <token_supervisor_o_admin>
+```
+
+Al aprobar una evidencia, la API actualiza la boleta asociada a `paid`. Al rechazarla, la evidencia queda `rejected` y la boleta conserva su estado actual.
+
 ## Administrar usuarios
 
 Los usuarios `admin` pueden administrar cuentas desde el frontend:
@@ -389,7 +422,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Conectar validacion de pagos y entrada a los endpoints con rol.
+1. Conectar entrada/check-in a una pantalla operativa.
 2. Agregar edicion de eventos.
 3. Agregar cambio de contrasena desde la pantalla de usuarios.
 4. Mejorar manejo visible de expiracion de sesion.

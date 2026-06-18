@@ -99,6 +99,10 @@ export interface PaymentEvidence {
   id: string;
   eventId: string;
   ticketId: string;
+  ticketCode?: string;
+  ticketBuyerName?: string;
+  ticketBuyerPhone?: string;
+  ticketStatus?: TicketStatus;
   method: PaymentMethod;
   amount: number;
   capitalizationAmount: number;

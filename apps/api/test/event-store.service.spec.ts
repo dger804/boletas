@@ -82,6 +82,8 @@ describe("EventStoreService", () => {
     });
     expect(approved.ticket.status).toBe("paid");
     expect(approved.payment.status).toBe("approved");
+    expect(approved.payment.ticketCode).toBe(ticket.code);
+    expect(approved.payment.ticketStatus).toBe("paid");
 
     const used = await store.checkInTicket(ticket.id, {
       checkedInBy: "Porteria Test"
@@ -143,6 +145,22 @@ describe("EventStoreService", () => {
           id: "dst_demo_1",
           name: "Equipo Comercial",
           phone: "+57 300 000 0000"
+        })
+      ])
+    );
+  });
+
+  it("lists payment evidence with ticket summary", async () => {
+    const store = new EventStoreService();
+
+    await expect(store.listPayments("evt_demo")).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "pay_demo_1",
+          ticketBuyerName: "Comprador Demo",
+          ticketBuyerPhone: "+57 311 000 0000",
+          ticketCode: "VIP-001",
+          ticketStatus: "paid"
         })
       ])
     );

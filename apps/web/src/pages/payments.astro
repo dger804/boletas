@@ -1,0 +1,1049 @@
+---
+import {
+  CalendarDays,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  Ticket
+} from "lucide-astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
+const authMeUrl = `${apiBase}/auth/me`;
+const eventsUrl = `${apiBase}/events`;
+const paymentsUrl = `${apiBase}/payments`;
+---
+
+<BaseLayout title="Pagos | Boletas">
+  <span
+    hidden
+    data-auth-me-url={authMeUrl}
+    data-events-url={eventsUrl}
+    data-payments-url={paymentsUrl}
+  ></span>
+  <script>
+    type EventStatus = "draft" | "active" | "closed";
+    type EvidenceStatus = "approved" | "pending" | "rejected";
+    type PaymentMethod = "cash" | "transfer";
+    type TicketStatus =
+      | "assigned"
+      | "available"
+      | "paid"
+      | "reserved"
+      | "sold"
+      | "used"
+      | "void";
+    type UserRole = "regular" | "supervisor" | "admin";
+
+    interface StoredUser {
+      id: string;
+      email: string;
+      name: string;
+      role: UserRole;
+    }
+
+    interface EventRecord {
+      id: string;
+      name: string;
+      date: string;
+      venue: string;
+      status: EventStatus;
+      expectedAttendees: number;
+      createdAt: string;
+    }
+
+    interface PaymentEvidenceRecord {
+      id: string;
+      eventId: string;
+      ticketId: string;
+      ticketCode?: string;
+      ticketBuyerName?: string;
+      ticketBuyerPhone?: string;
+      ticketStatus?: TicketStatus;
+      method: PaymentMethod;
+      amount: number;
+      capitalizationAmount: number;
+      evidenceUrl?: string;
+      reference?: string;
+      status: EvidenceStatus;
+      receivedAt: string;
+      reviewedAt?: string;
+      reviewedBy?: string;
+      notes?: string;
+    }
+
+    interface AuthMeResponse {
+      user?: StoredUser;
+    }
+
+    const allowedRoles = new Set(["regular", "supervisor", "admin"]);
+    const allowedEventStatuses = new Set(["draft", "active", "closed"]);
+    const allowedEvidenceStatuses = new Set(["approved", "pending", "rejected"]);
+    const allowedPaymentMethods = new Set(["cash", "transfer"]);
+    const allowedTicketStatuses = new Set([
+      "assigned",
+      "available",
+      "paid",
+      "reserved",
+      "sold",
+      "used",
+      "void"
+    ]);
+    const roleLabels: Record<UserRole, string> = {
+      admin: "Admin",
+      regular: "Regular",
+      supervisor: "Supervisor"
+    };
+    const paymentMethodLabels: Record<PaymentMethod, string> = {
+      cash: "Efectivo",
+      transfer: "Transferencia"
+    };
+    const statusLabels: Record<EvidenceStatus, string> = {
+      approved: "Aprobado",
+      pending: "Pendiente",
+      rejected: "Rechazado"
+    };
+    const statusClasses: Record<EvidenceStatus, string> = {
+      approved: "bg-emerald-50 text-emerald-700",
+      pending: "bg-amber-50 text-amber-700",
+      rejected: "bg-rose-50 text-rose-700"
+    };
+
+    let authToken = "";
+    let currentUser: StoredUser | null = null;
+    let currentEvents: EventRecord[] = [];
+    let currentPayments: PaymentEvidenceRecord[] = [];
+    let selectedPaymentId = "";
+    let selectedEventId = new URLSearchParams(window.location.search)
+      .get("eventId")
+      ?.trim() ?? "";
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+    const money = new Intl.NumberFormat("es-CO", {
+      currency: "COP",
+      maximumFractionDigits: 0,
+      style: "currency"
+    });
+
+    const resolveApiUrl = (url: string | null | undefined) => {
+      if (!url) {
+        return null;
+      }
+
+      if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
+        return `http://localhost:3000${url}`;
+      }
+
+      return url;
+    };
+
+    const clearSession = () => {
+      sessionStorage.removeItem("boletas.auth.token");
+      sessionStorage.removeItem("boletas.auth.expiresAt");
+      sessionStorage.removeItem("boletas.auth.user");
+    };
+
+    const redirectToLogin = () => {
+      clearSession();
+      window.location.replace("/login");
+    };
+
+    const getConfig = () => {
+      const config = document.querySelector<HTMLElement>("[data-auth-me-url]");
+
+      return {
+        authMeUrl: resolveApiUrl(config?.dataset.authMeUrl),
+        eventsUrl: resolveApiUrl(config?.dataset.eventsUrl),
+        paymentsUrl: resolveApiUrl(config?.dataset.paymentsUrl)
+      };
+    };
+
+    const isStoredUser = (value: unknown): value is StoredUser => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const user = value as Partial<StoredUser>;
+
+      return (
+        typeof user.id === "string" &&
+        typeof user.email === "string" &&
+        typeof user.name === "string" &&
+        typeof user.role === "string" &&
+        allowedRoles.has(user.role)
+      );
+    };
+
+    const isEventRecord = (value: unknown): value is EventRecord => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const event = value as Partial<EventRecord>;
+
+      return (
+        typeof event.id === "string" &&
+        typeof event.name === "string" &&
+        typeof event.date === "string" &&
+        typeof event.venue === "string" &&
+        typeof event.status === "string" &&
+        allowedEventStatuses.has(event.status) &&
+        typeof event.expectedAttendees === "number" &&
+        typeof event.createdAt === "string"
+      );
+    };
+
+    const isPaymentEvidenceRecord = (value: unknown): value is PaymentEvidenceRecord => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const payment = value as Partial<PaymentEvidenceRecord>;
+      const optionalStringIsValid = (field: unknown) =>
+        typeof field === "undefined" || typeof field === "string";
+      const ticketStatusIsValid =
+        typeof payment.ticketStatus === "undefined" ||
+        (typeof payment.ticketStatus === "string" &&
+          allowedTicketStatuses.has(payment.ticketStatus));
+
+      return (
+        typeof payment.id === "string" &&
+        typeof payment.eventId === "string" &&
+        typeof payment.ticketId === "string" &&
+        typeof payment.method === "string" &&
+        allowedPaymentMethods.has(payment.method) &&
+        typeof payment.amount === "number" &&
+        typeof payment.capitalizationAmount === "number" &&
+        typeof payment.status === "string" &&
+        allowedEvidenceStatuses.has(payment.status) &&
+        typeof payment.receivedAt === "string" &&
+        optionalStringIsValid(payment.ticketCode) &&
+        optionalStringIsValid(payment.ticketBuyerName) &&
+        optionalStringIsValid(payment.ticketBuyerPhone) &&
+        optionalStringIsValid(payment.evidenceUrl) &&
+        optionalStringIsValid(payment.reference) &&
+        optionalStringIsValid(payment.reviewedAt) &&
+        optionalStringIsValid(payment.reviewedBy) &&
+        optionalStringIsValid(payment.notes) &&
+        ticketStatusIsValid
+      );
+    };
+
+    const readStoredUser = (): StoredUser | null => {
+      const storedUser = sessionStorage.getItem("boletas.auth.user");
+
+      if (!storedUser) {
+        return null;
+      }
+
+      try {
+        const parsed = JSON.parse(storedUser) as unknown;
+
+        return isStoredUser(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const isExpired = (expiresAt: string | null) => {
+      const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+
+      return !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now();
+    };
+
+    const whenReady = (callback: () => void) => {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback, { once: true });
+      } else {
+        callback();
+      }
+    };
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    const renderUser = (user: StoredUser) => {
+      currentUser = user;
+
+      document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
+        element.textContent = user.name;
+      });
+
+      document.querySelectorAll("[data-auth-user-email]").forEach((element) => {
+        element.textContent = user.email;
+      });
+
+      document.querySelectorAll("[data-auth-user-role]").forEach((element) => {
+        element.textContent = roleLabels[user.role];
+      });
+    };
+
+    const renderAdminOnly = (user: StoredUser) => {
+      document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
+        element.classList.toggle("hidden", user.role !== "admin");
+      });
+    };
+
+    const bindLogout = () => {
+      document.querySelectorAll("[data-logout-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+          clearSession();
+          window.location.replace("/login");
+        });
+      });
+    };
+
+    const setStatus = (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
+      const element = document.querySelector<HTMLElement>("[data-payments-status]");
+
+      if (!element) {
+        return;
+      }
+
+      const toneClasses = {
+        error: "border-rose-200 bg-rose-50 text-rose-700",
+        neutral: "border-zinc-200 bg-white text-zinc-600",
+        success: "border-emerald-200 bg-emerald-50 text-emerald-700"
+      };
+
+      element.className = `rounded-md border px-3 py-2 text-sm ${toneClasses[tone]}`;
+      element.textContent = message;
+      element.classList.remove("hidden");
+    };
+
+    const validateSession = async (url: string, token: string) => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Auth session rejected with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as AuthMeResponse;
+
+      if (!isStoredUser(payload.user)) {
+        throw new Error("Auth session response did not include a valid user.");
+      }
+
+      return payload.user;
+    };
+
+    const requestJson = async <T,>(url: string, options: RequestInit = {}) => {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${authToken}`,
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...options.headers
+        }
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        redirectToLogin();
+      }
+
+      if (!response.ok) {
+        let message = `Solicitud rechazada con estado ${response.status}.`;
+
+        try {
+          const payload = (await response.json()) as { message?: string };
+
+          if (payload.message) {
+            message = payload.message;
+          }
+        } catch {
+          // Keep the generic message.
+        }
+
+        throw new Error(message);
+      }
+
+      return (await response.json()) as T;
+    };
+
+    const formatDate = (value?: string) => {
+      if (!value) {
+        return "Sin registro";
+      }
+
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "Sin registro";
+      }
+
+      return new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(date);
+    };
+
+    const getSelectedPayment = () =>
+      currentPayments.find((payment) => payment.id === selectedPaymentId) ?? null;
+
+    const updateSelectedEvent = (eventId: string) => {
+      selectedEventId = eventId;
+      const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
+
+      if (selector) {
+        selector.value = selectedEventId;
+      }
+
+      const query = new URLSearchParams(window.location.search);
+      query.set("eventId", selectedEventId);
+      window.history.replaceState(null, "", `${window.location.pathname}?${query.toString()}`);
+    };
+
+    const renderEventOptions = () => {
+      const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
+      const reviewEventName = document.querySelector<HTMLElement>("[data-review-event-name]");
+
+      if (!selector) {
+        return;
+      }
+
+      if (currentEvents.length === 0) {
+        selector.innerHTML = `<option value="">Sin eventos</option>`;
+        selector.setAttribute("disabled", "true");
+        if (reviewEventName) {
+          reviewEventName.textContent = "Selecciona un evento";
+        }
+        return;
+      }
+
+      if (!currentEvents.some((event) => event.id === selectedEventId)) {
+        selectedEventId = currentEvents[0].id;
+      }
+
+      selector.removeAttribute("disabled");
+      selector.innerHTML = currentEvents
+        .map(
+          (event) =>
+            `<option value="${escapeHtml(event.id)}"${event.id === selectedEventId ? " selected" : ""}>${escapeHtml(event.name)}</option>`
+        )
+        .join("");
+
+      if (reviewEventName) {
+        const event = currentEvents.find((item) => item.id === selectedEventId);
+        reviewEventName.textContent = event?.name ?? "Selecciona un evento";
+      }
+    };
+
+    const updateReviewPanel = () => {
+      const payment = getSelectedPayment();
+      const title = document.querySelector<HTMLElement>("[data-review-payment-title]");
+      const meta = document.querySelector<HTMLElement>("[data-review-payment-meta]");
+      const reviewedBy = document.querySelector<HTMLInputElement>('[name="reviewedBy"]');
+      const submitButton = document.querySelector<HTMLButtonElement>("[data-review-payment-submit]");
+
+      if (title) {
+        title.textContent = payment
+          ? `Boleta ${payment.ticketCode ?? payment.ticketId}`
+          : "Selecciona una evidencia";
+      }
+
+      if (meta) {
+        meta.textContent = payment
+          ? `${paymentMethodLabels[payment.method]} - ${money.format(payment.amount)}`
+          : "Pendiente de seleccion";
+      }
+
+      if (reviewedBy && currentUser) {
+        reviewedBy.value = currentUser.name;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = !payment || payment.status !== "pending";
+      }
+    };
+
+    const selectPaymentForReview = (paymentId: string, status: EvidenceStatus) => {
+      const payment = currentPayments.find((item) => item.id === paymentId);
+
+      if (!payment) {
+        setStatus("No se encontro la evidencia seleccionada.", "error");
+        return;
+      }
+
+      if (payment.status !== "pending") {
+        setStatus("Esta evidencia ya fue revisada.", "error");
+        return;
+      }
+
+      selectedPaymentId = payment.id;
+      const statusSelect = document.querySelector<HTMLSelectElement>('[name="status"]');
+
+      if (statusSelect) {
+        statusSelect.value = status;
+      }
+
+      updateReviewPanel();
+      setStatus(`Revision preparada para ${payment.ticketCode ?? payment.ticketId}.`);
+    };
+
+    const renderPayments = (payments: PaymentEvidenceRecord[]) => {
+      const body = document.querySelector<HTMLElement>("[data-payments-body]");
+      const count = document.querySelector<HTMLElement>("[data-payments-count]");
+      const pending = document.querySelector<HTMLElement>("[data-payments-pending]");
+      const approved = document.querySelector<HTMLElement>("[data-payments-approved]");
+      const total = document.querySelector<HTMLElement>("[data-payments-total]");
+
+      if (count) {
+        count.textContent = `${payments.length}`;
+      }
+
+      if (pending) {
+        pending.textContent = `${payments.filter((payment) => payment.status === "pending").length}`;
+      }
+
+      if (approved) {
+        approved.textContent = `${payments.filter((payment) => payment.status === "approved").length}`;
+      }
+
+      if (total) {
+        total.textContent = money.format(
+          payments
+            .filter((payment) => payment.status === "approved")
+            .reduce((sum, payment) => sum + payment.amount, 0)
+        );
+      }
+
+      if (!body) {
+        return;
+      }
+
+      if (payments.length === 0) {
+        body.innerHTML = `
+          <tr>
+            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="9">
+              Sin evidencias registradas para este evento
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      body.innerHTML = payments
+        .map((payment) => {
+          const statusLabel = statusLabels[payment.status];
+          const statusClass = statusClasses[payment.status];
+          const buyer = payment.ticketBuyerName ?? "Sin comprador";
+          const phone = payment.ticketBuyerPhone
+            ? `<p class="mt-1 text-xs text-zinc-500">${escapeHtml(payment.ticketBuyerPhone)}</p>`
+            : "";
+          const evidenceLink = payment.evidenceUrl
+            ? `
+              <a
+                class="inline-flex items-center gap-1 text-sm font-medium text-zinc-950 underline-offset-4 hover:underline"
+                href="${escapeHtml(payment.evidenceUrl)}"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Evidencia
+              </a>
+            `
+            : `<span class="text-sm text-zinc-400">Sin archivo</span>`;
+          const actions =
+            payment.status === "pending"
+              ? `
+                <div class="flex justify-end gap-2">
+                  <button
+                    class="inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700"
+                    data-review-payment="${escapeHtml(payment.id)}"
+                    data-review-status="approved"
+                    type="button"
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    class="inline-flex h-9 items-center rounded-md border border-rose-200 px-3 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                    data-review-payment="${escapeHtml(payment.id)}"
+                    data-review-status="rejected"
+                    type="button"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              `
+              : `<span class="text-xs text-zinc-400">${escapeHtml(payment.reviewedBy ?? "Revisado")}</span>`;
+
+          return `
+            <tr class="align-top hover:bg-zinc-50">
+              <td class="whitespace-nowrap px-4 py-3 font-medium text-zinc-950">
+                ${escapeHtml(payment.ticketCode ?? payment.ticketId)}
+              </td>
+              <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
+                <p>${escapeHtml(buyer)}</p>
+                ${phone}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(paymentMethodLabels[payment.method])}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3">
+                <span class="rounded-md px-2 py-1 text-xs font-medium ${statusClass}">
+                  ${escapeHtml(statusLabel)}
+                </span>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">
+                ${escapeHtml(money.format(payment.amount))}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-zinc-600">
+                ${escapeHtml(money.format(payment.capitalizationAmount))}
+              </td>
+              <td class="min-w-44 px-4 py-3 text-sm text-zinc-600">
+                <p>${escapeHtml(payment.reference ?? "Sin referencia")}</p>
+                <div class="mt-1">${evidenceLink}</div>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(formatDate(payment.receivedAt))}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                ${actions}
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+    };
+
+    const loadPayments = async () => {
+      const { paymentsUrl } = getConfig();
+
+      if (!paymentsUrl) {
+        setStatus("No se encontro la ruta de pagos.", "error");
+        return;
+      }
+
+      if (!selectedEventId) {
+        currentPayments = [];
+        selectedPaymentId = "";
+        renderPayments([]);
+        updateReviewPanel();
+        setStatus("Selecciona un evento para ver pagos.");
+        return;
+      }
+
+      setStatus("Cargando pagos.");
+
+      try {
+        const url = `${paymentsUrl}?eventId=${encodeURIComponent(selectedEventId)}`;
+        const payload = await requestJson<unknown[]>(url);
+        const payments = Array.isArray(payload)
+          ? payload.filter(isPaymentEvidenceRecord)
+          : [];
+
+        currentPayments = payments;
+        if (!currentPayments.some((payment) => payment.id === selectedPaymentId)) {
+          selectedPaymentId = "";
+        }
+        renderPayments(payments);
+        updateReviewPanel();
+        setStatus("Pagos actualizados.", "success");
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible cargar pagos.",
+          "error"
+        );
+      }
+    };
+
+    const loadEvents = async () => {
+      const { eventsUrl } = getConfig();
+
+      if (!eventsUrl) {
+        setStatus("No se encontro la ruta de eventos.", "error");
+        return;
+      }
+
+      setStatus("Cargando eventos.");
+
+      try {
+        const payload = await requestJson<unknown[]>(eventsUrl);
+        currentEvents = Array.isArray(payload) ? payload.filter(isEventRecord) : [];
+        renderEventOptions();
+
+        if (selectedEventId) {
+          await loadPayments();
+        } else {
+          currentPayments = [];
+          selectedPaymentId = "";
+          renderPayments([]);
+          updateReviewPanel();
+          setStatus("No hay eventos para consultar.");
+        }
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible cargar eventos.",
+          "error"
+        );
+      }
+    };
+
+    const bindPaymentActions = () => {
+      document.querySelector("[data-refresh-payments]")?.addEventListener("click", () => {
+        void loadEvents();
+      });
+
+      document
+        .querySelector<HTMLSelectElement>("[data-event-selector]")
+        ?.addEventListener("change", (event) => {
+          const target = event.currentTarget as HTMLSelectElement;
+          updateSelectedEvent(target.value);
+          void loadPayments();
+        });
+
+      document.querySelector("[data-payments-body]")?.addEventListener("click", (event) => {
+        const target = event.target;
+
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const button = target.closest<HTMLButtonElement>("[data-review-payment]");
+        const status = button?.dataset.reviewStatus;
+
+        if (
+          !button?.dataset.reviewPayment ||
+          (status !== "approved" && status !== "rejected")
+        ) {
+          return;
+        }
+
+        selectPaymentForReview(button.dataset.reviewPayment, status);
+      });
+    };
+
+    const bindReviewForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-review-payment-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { paymentsUrl } = getConfig();
+        const payment = getSelectedPayment();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!paymentsUrl || !payment) {
+          setStatus("Selecciona una evidencia antes de validar.", "error");
+          return;
+        }
+
+        if (payment.status !== "pending") {
+          setStatus("Esta evidencia ya fue revisada.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const status = String(formData.get("status") ?? "approved");
+        const notes = String(formData.get("notes") ?? "").trim();
+        const reviewedBy = String(formData.get("reviewedBy") ?? "").trim();
+
+        if (status !== "approved" && status !== "rejected") {
+          setStatus("Selecciona una decision valida.", "error");
+          return;
+        }
+
+        if (!reviewedBy) {
+          setStatus("Registra quien revisa el pago.", "error");
+          return;
+        }
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<{ payment: PaymentEvidenceRecord; ticket: unknown }>(
+            `${paymentsUrl}/${encodeURIComponent(payment.id)}/verify`,
+            {
+              body: JSON.stringify({
+                reviewedBy,
+                status,
+                ...(notes ? { notes } : {})
+              }),
+              method: "PATCH"
+            }
+          );
+          form.reset();
+          selectedPaymentId = "";
+          setStatus("Pago actualizado.", "success");
+          await loadPayments();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible validar el pago.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+          updateReviewPanel();
+        }
+      });
+    };
+
+    try {
+      const { authMeUrl } = getConfig();
+      const token = sessionStorage.getItem("boletas.auth.token");
+      const expiresAt = sessionStorage.getItem("boletas.auth.expiresAt");
+      const user = readStoredUser();
+
+      if (!authMeUrl || !token || isExpired(expiresAt) || !user) {
+        redirectToLogin();
+      } else {
+        authToken = token;
+
+        whenReady(() => {
+          renderUser(user);
+          bindLogout();
+          bindPaymentActions();
+          bindReviewForm();
+        });
+
+        validateSession(authMeUrl, token)
+          .then((apiUser) => {
+            sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
+            renderUser(apiUser);
+            renderAdminOnly(apiUser);
+
+            if (apiUser.role === "regular") {
+              window.location.replace("/dashboard");
+              return;
+            }
+
+            void loadEvents();
+          })
+          .catch(() => {
+            redirectToLogin();
+          });
+      }
+    } catch {
+      redirectToLogin();
+    }
+  </script>
+
+  <div class="grid min-h-screen lg:grid-cols-[240px_1fr]">
+    <aside class="border-b border-zinc-200 bg-white px-4 py-4 lg:border-b-0 lg:border-r">
+      <div class="flex h-full flex-col gap-6">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+            <Ticket size={20} />
+          </span>
+          <div>
+            <p class="text-sm font-semibold text-zinc-950">Boletas</p>
+            <p class="text-xs text-zinc-500">Pagos</p>
+          </div>
+        </div>
+
+        <nav class="grid gap-1 text-sm">
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/dashboard">
+            Tablero
+          </a>
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-admin-only href="/users">
+            Usuarios
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/events">
+            Eventos
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/tickets">
+            Boletas
+          </a>
+          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/payments">
+            Pagos
+          </a>
+        </nav>
+
+        <div class="mt-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <p class="text-xs font-medium text-zinc-500">Sesion</p>
+          <p class="mt-1 truncate text-sm font-semibold text-zinc-950" data-auth-user-name>
+            Usuario
+          </p>
+          <p class="mt-1 truncate text-xs text-zinc-500" data-auth-user-email>
+            usuario@dominio.com
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="min-w-0">
+      <header class="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6">
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-xs font-medium text-zinc-500">
+              <CalendarDays size={14} />
+              <span>Validacion por evento</span>
+            </div>
+            <h1 class="mt-2 text-2xl font-semibold text-zinc-950">
+              Pagos
+            </h1>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <select
+              class="h-10 min-w-64 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-zinc-500 disabled:bg-zinc-100"
+              data-event-selector
+            >
+              <option value="">Cargando eventos</option>
+            </select>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-refresh-payments
+              title="Actualizar"
+              type="button"
+            >
+              <RefreshCw size={17} />
+              Actualizar
+            </button>
+            <div class="flex h-10 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3">
+              <ShieldCheck class="text-emerald-600" size={17} />
+              <div class="hidden leading-tight sm:block">
+                <p class="max-w-36 truncate text-xs font-semibold text-zinc-950" data-auth-user-name>
+                  Usuario
+                </p>
+                <p class="text-[11px] uppercase text-zinc-500" data-auth-user-role>
+                  Admin
+                </p>
+              </div>
+            </div>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-logout-button
+              title="Cerrar sesion"
+              type="button"
+            >
+              <LogOut size={17} />
+              Salir
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="space-y-6 p-4 sm:p-6">
+        <p class="hidden rounded-md border px-3 py-2 text-sm" data-payments-status></p>
+
+        <section class="grid gap-4 md:grid-cols-4">
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Evidencias</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-count>0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Pendientes</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-pending>0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Aprobadas</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-approved>0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Recaudo aprobado</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-total>$0</p>
+          </div>
+        </section>
+
+        <section class="grid gap-6 xl:grid-cols-[360px_1fr]">
+          <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
+                <ShieldCheck size={18} />
+              </span>
+              <div>
+                <h2 class="text-sm font-semibold text-zinc-950">Validar pago</h2>
+                <p class="mt-1 text-xs text-zinc-500" data-review-event-name>Selecciona un evento</p>
+              </div>
+            </div>
+
+            <div class="mt-4 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3">
+              <p class="text-sm font-semibold text-zinc-950" data-review-payment-title>
+                Selecciona una evidencia
+              </p>
+              <p class="mt-1 text-xs text-zinc-500" data-review-payment-meta>
+                Pendiente de seleccion
+              </p>
+            </div>
+
+            <form class="mt-5 grid gap-4" data-review-payment-form>
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Decision</span>
+                <select
+                  class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
+                  name="status"
+                >
+                  <option value="approved">Aprobar</option>
+                  <option value="rejected">Rechazar</option>
+                </select>
+              </label>
+
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Revisado por</span>
+                <input
+                  class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                  maxlength="120"
+                  name="reviewedBy"
+                  required
+                  type="text"
+                />
+              </label>
+
+              <label class="grid gap-2">
+                <span class="text-sm font-medium text-zinc-700">Notas</span>
+                <textarea
+                  class="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                  maxlength="500"
+                  name="notes"
+                ></textarea>
+              </label>
+
+              <button
+                class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                data-review-payment-submit
+                disabled
+                type="submit"
+              >
+                Guardar validacion
+              </button>
+            </form>
+          </section>
+
+          <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 class="text-sm font-semibold text-zinc-950">Evidencias</h2>
+                <p class="mt-1 text-xs text-zinc-500">Pagos reportados del evento seleccionado</p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-zinc-100 text-left">
+                <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Boleta</th>
+                    <th class="px-4 py-3 font-medium">Comprador</th>
+                    <th class="px-4 py-3 font-medium">Metodo</th>
+                    <th class="px-4 py-3 font-medium">Estado</th>
+                    <th class="px-4 py-3 text-right font-medium">Valor</th>
+                    <th class="px-4 py-3 text-right font-medium">Capitalizacion</th>
+                    <th class="px-4 py-3 font-medium">Soporte</th>
+                    <th class="px-4 py-3 font-medium">Recibido</th>
+                    <th class="px-4 py-3 text-right font-medium">Accion</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100 bg-white" data-payments-body>
+                  <tr>
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="9">
+                      Cargando pagos
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+</BaseLayout>

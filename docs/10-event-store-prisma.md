@@ -73,6 +73,8 @@ Ambos devuelven una salida sanitizada:
 
 El endpoint completo `GET /api/events/:eventId/dashboard` queda protegido para `supervisor` y `admin` porque puede incluir datos operativos completos.
 
+`GET /api/payments` queda protegido para `supervisor` y `admin` y devuelve cada evidencia con resumen de la boleta asociada (`ticketCode`, comprador, telefono y estado) cuando existe relacion disponible. Ese contexto no se usa en endpoints publicos sanitizados.
+
 El frontend estatico renderiza un fallback y luego refresca el endpoint protegido `summary` desde el navegador con `Authorization: Bearer <token>`. Esto evita publicar `ADMIN_API_TOKEN` y evita que el dashboard quede congelado con datos del momento del build.
 
 ## Fallback local

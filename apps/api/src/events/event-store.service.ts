@@ -39,6 +39,10 @@ type PrismaTicketWithDistributor = PrismaTicket & {
   distributor?: Pick<PrismaDistributor, "email" | "name" | "notes" | "phone"> | null;
 };
 
+type PrismaPaymentWithTicket = PrismaPaymentEvidence & {
+  ticket?: Pick<PrismaTicket, "buyerName" | "buyerPhone" | "code" | "status"> | null;
+};
+
 @Injectable()
 export class EventStoreService {
   private readonly events: EventRecord[] = [
@@ -546,15 +550,27 @@ export class EventStoreService {
   async listPayments(eventId?: string) {
     if (this.prisma?.isConfigured()) {
       const payments = await this.prisma.paymentEvidence.findMany({
+        include: {
+          ticket: {
+            select: {
+              buyerName: true,
+              buyerPhone: true,
+              code: true,
+              status: true
+            }
+          }
+        },
         orderBy: { receivedAt: "desc" },
         where: eventId ? { eventId } : undefined
       });
       return payments.map(this.toPaymentEvidence);
     }
 
-    return eventId
+    const payments = eventId
       ? this.payments.filter((payment) => payment.eventId === eventId)
       : this.payments;
+
+    return payments.map((payment) => this.withPaymentTicketSummary(payment));
   }
 
   async verifyPayment(paymentId: string, dto: VerifyPaymentDto) {
@@ -596,7 +612,10 @@ export class EventStoreService {
       });
 
       return {
-        payment: this.toPaymentEvidence(verified.payment),
+        payment: this.toPaymentEvidence({
+          ...verified.payment,
+          ticket: verified.ticket
+        }),
         ticket: this.toTicketRecord(verified.ticket)
       };
     }
@@ -618,7 +637,7 @@ export class EventStoreService {
       ticket.paidAt = now();
     }
 
-    return { payment, ticket };
+    return { payment: this.withPaymentTicketSummary(payment), ticket };
   }
 
   private buildDashboard(
@@ -820,11 +839,27 @@ export class EventStoreService {
     };
   }
 
-  private toPaymentEvidence(payment: PrismaPaymentEvidence): PaymentEvidence {
+  private withPaymentTicketSummary(payment: PaymentEvidence): PaymentEvidence {
+    const ticket = this.tickets.find((item) => item.id === payment.ticketId);
+
+    return {
+      ...payment,
+      ticketBuyerName: ticket?.buyerName,
+      ticketBuyerPhone: ticket?.buyerPhone,
+      ticketCode: ticket?.code,
+      ticketStatus: ticket?.status
+    };
+  }
+
+  private toPaymentEvidence(payment: PrismaPaymentWithTicket): PaymentEvidence {
     return {
       id: payment.id,
       eventId: payment.eventId,
       ticketId: payment.ticketId,
+      ticketBuyerName: payment.ticket?.buyerName ?? undefined,
+      ticketBuyerPhone: payment.ticket?.buyerPhone ?? undefined,
+      ticketCode: payment.ticket?.code,
+      ticketStatus: payment.ticket?.status,
       method: payment.method,
       amount: payment.amount,
       capitalizationAmount: payment.capitalizationAmount,
