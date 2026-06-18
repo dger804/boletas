@@ -5,8 +5,10 @@ import {
   Param,
   Patch,
   Query,
+  Req,
   UseGuards
 } from "@nestjs/common";
+import type { RequestWithUser } from "../auth/auth-token.guard";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { AssignTicketDto, CheckInTicketDto, RegisterSaleDto } from "./dto";
@@ -25,19 +27,38 @@ export class TicketsController {
 
   @Roles("supervisor", "admin")
   @Patch(":ticketId/assign")
-  assignTicket(@Param("ticketId") ticketId: string, @Body() body: AssignTicketDto) {
-    return this.store.assignTicket(ticketId, body);
+  assignTicket(
+    @Param("ticketId") ticketId: string,
+    @Body() body: AssignTicketDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.assignTicket(ticketId, body, request.user);
   }
 
   @Roles("regular", "supervisor", "admin")
   @Patch(":ticketId/sale")
-  registerSale(@Param("ticketId") ticketId: string, @Body() body: RegisterSaleDto) {
-    return this.store.registerSale(ticketId, body);
+  registerSale(
+    @Param("ticketId") ticketId: string,
+    @Body() body: RegisterSaleDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.registerSale(ticketId, body, request.user);
   }
 
   @Roles("regular", "supervisor", "admin")
   @Patch(":ticketId/check-in")
-  checkInTicket(@Param("ticketId") ticketId: string, @Body() body: CheckInTicketDto) {
-    return this.store.checkInTicket(ticketId, body);
+  checkInTicket(
+    @Param("ticketId") ticketId: string,
+    @Body() body: CheckInTicketDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.checkInTicket(
+      ticketId,
+      {
+        ...body,
+        checkedInBy: request.user?.name ?? body.checkedInBy
+      },
+      request.user
+    );
   }
 }

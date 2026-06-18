@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type {
+  AuthenticatedUser,
   Distributor,
   EventDashboard,
   EventRecord,
@@ -43,6 +44,8 @@ type PrismaTicketWithDistributor = PrismaTicket & {
 type PrismaPaymentWithTicket = PrismaPaymentEvidence & {
   ticket?: Pick<PrismaTicket, "buyerName" | "buyerPhone" | "code" | "status"> | null;
 };
+
+type AuditMetadata = Record<string, string | number | boolean | null>;
 
 @Injectable()
 export class EventStoreService {
@@ -127,7 +130,7 @@ export class EventStoreService {
     return this.events;
   }
 
-  async createEvent(dto: CreateEventDto) {
+  async createEvent(dto: CreateEventDto, actor?: AuthenticatedUser) {
     if (this.prisma?.isConfigured()) {
       const event = await this.prisma.event.create({
         data: {
@@ -137,6 +140,18 @@ export class EventStoreService {
           status: dto.status ?? "draft",
           venue: dto.venue
         }
+      });
+
+      await this.createAuditLog({
+        action: "event.create",
+        actor,
+        entityId: event.id,
+        entityType: "event",
+        eventId: event.id,
+        metadata: {
+          status: event.status
+        },
+        toStatus: event.status
       });
 
       return this.toEventRecord(event);
@@ -156,13 +171,17 @@ export class EventStoreService {
     return event;
   }
 
-  async updateEvent(eventId: string, dto: UpdateEventDto) {
+  async updateEvent(
+    eventId: string,
+    dto: UpdateEventDto,
+    actor?: AuthenticatedUser
+  ) {
     if (!this.hasEventUpdate(dto)) {
       throw new BadRequestException("event update requires at least one field");
     }
 
     if (this.prisma?.isConfigured()) {
-      await this.findPrismaEvent(eventId);
+      const existing = await this.findPrismaEvent(eventId);
 
       const event = await this.prisma.event.update({
         data: {
@@ -175,6 +194,19 @@ export class EventStoreService {
           ...(dto.venue !== undefined ? { venue: dto.venue } : {})
         },
         where: { id: eventId }
+      });
+
+      await this.createAuditLog({
+        action: "event.update",
+        actor,
+        entityId: event.id,
+        entityType: "event",
+        eventId: event.id,
+        fromStatus: existing.status,
+        metadata: {
+          fieldsChanged: this.changedEventFields(dto).join(",")
+        },
+        toStatus: event.status
       });
 
       return this.toEventRecord(event);
@@ -286,7 +318,11 @@ export class EventStoreService {
     };
   }
 
-  async addDistributor(eventId: string, dto: CreateDistributorDto) {
+  async addDistributor(
+    eventId: string,
+    dto: CreateDistributorDto,
+    actor?: AuthenticatedUser
+  ) {
     if (this.prisma?.isConfigured()) {
       await this.findPrismaEvent(eventId);
 
@@ -297,6 +333,17 @@ export class EventStoreService {
           name: dto.name,
           notes: dto.notes,
           phone: dto.phone
+        }
+      });
+
+      await this.createAuditLog({
+        action: "distributor.create",
+        actor,
+        entityId: distributor.id,
+        entityType: "distributor",
+        eventId,
+        metadata: {
+          distributorName: distributor.name
         }
       });
 
@@ -335,7 +382,11 @@ export class EventStoreService {
     return this.distributors.filter((distributor) => distributor.eventId === eventId);
   }
 
-  async createTicketBatch(eventId: string, dto: CreateTicketBatchDto) {
+  async createTicketBatch(
+    eventId: string,
+    dto: CreateTicketBatchDto,
+    actor?: AuthenticatedUser
+  ) {
     if (this.prisma?.isConfigured()) {
       await this.findPrismaEvent(eventId);
 
@@ -364,6 +415,20 @@ export class EventStoreService {
       });
 
       const tickets = await this.prisma.$transaction(createTicketOperations);
+
+      await this.createAuditLog({
+        action: "ticket.batch_create",
+        actor,
+        entityId: eventId,
+        entityType: "event",
+        eventId,
+        metadata: {
+          codePrefix: prefix,
+          price: dto.price,
+          quantity: dto.quantity
+        }
+      });
+
       return tickets.map(this.toTicketRecord);
     }
 
@@ -420,7 +485,11 @@ export class EventStoreService {
     return tickets.map((ticket) => this.withDistributorContact(ticket));
   }
 
-  async assignTicket(ticketId: string, dto: AssignTicketDto) {
+  async assignTicket(
+    ticketId: string,
+    dto: AssignTicketDto,
+    actor?: AuthenticatedUser
+  ) {
     if (this.prisma?.isConfigured()) {
       const [ticket, distributor] = await Promise.all([
         this.findPrismaTicket(ticketId),
@@ -453,6 +522,20 @@ export class EventStoreService {
         where: { id: ticket.id }
       });
 
+      await this.createAuditLog({
+        action: "ticket.assign",
+        actor,
+        entityId: ticket.id,
+        entityType: "ticket",
+        eventId: ticket.eventId,
+        fromStatus: ticket.status,
+        metadata: {
+          distributorId: distributor.id,
+          ticketCode: ticket.code
+        },
+        toStatus: updated.status
+      });
+
       return this.toTicketRecord(updated);
     }
 
@@ -473,7 +556,11 @@ export class EventStoreService {
     return this.withDistributorContact(ticket);
   }
 
-  async registerSale(ticketId: string, dto: RegisterSaleDto) {
+  async registerSale(
+    ticketId: string,
+    dto: RegisterSaleDto,
+    actor?: AuthenticatedUser
+  ) {
     if (this.prisma?.isConfigured()) {
       const ticket = await this.findPrismaTicket(ticketId);
 
@@ -512,6 +599,22 @@ export class EventStoreService {
           }
         })
       ]);
+
+      await this.createAuditLog({
+        action: "ticket.sale",
+        actor,
+        entityId: ticket.id,
+        entityType: "ticket",
+        eventId: ticket.eventId,
+        fromStatus: ticket.status,
+        metadata: {
+          amount: dto.amount,
+          method: dto.method,
+          paymentId: payment.id,
+          ticketCode: ticket.code
+        },
+        toStatus: updatedTicket.status
+      });
 
       return {
         payment: this.toPaymentEvidence(payment),
@@ -552,7 +655,13 @@ export class EventStoreService {
     return { ticket, payment };
   }
 
-  async checkInTicket(ticketId: string, dto: CheckInTicketDto) {
+  async checkInTicket(
+    ticketId: string,
+    dto: CheckInTicketDto,
+    actor?: AuthenticatedUser
+  ) {
+    const checkedInBy = this.actorName(actor, dto.checkedInBy);
+
     if (this.prisma?.isConfigured()) {
       const ticket = await this.findPrismaTicket(ticketId);
 
@@ -566,11 +675,25 @@ export class EventStoreService {
 
       const updated = await this.prisma.ticket.update({
         data: {
-          checkedInBy: dto.checkedInBy,
+          checkedInBy,
           status: "used",
           usedAt: new Date()
         },
         where: { id: ticket.id }
+      });
+
+      await this.createAuditLog({
+        action: "ticket.check_in",
+        actor,
+        entityId: ticket.id,
+        entityType: "ticket",
+        eventId: ticket.eventId,
+        fromStatus: ticket.status,
+        metadata: {
+          checkedInBy,
+          ticketCode: ticket.code
+        },
+        toStatus: updated.status
       });
 
       return this.toTicketRecord(updated);
@@ -588,7 +711,7 @@ export class EventStoreService {
 
     ticket.status = "used";
     ticket.usedAt = now();
-    ticket.checkedInBy = dto.checkedInBy;
+    ticket.checkedInBy = checkedInBy;
 
     return ticket;
   }
@@ -619,7 +742,13 @@ export class EventStoreService {
     return payments.map((payment) => this.withPaymentTicketSummary(payment));
   }
 
-  async verifyPayment(paymentId: string, dto: VerifyPaymentDto) {
+  async verifyPayment(
+    paymentId: string,
+    dto: VerifyPaymentDto,
+    actor?: AuthenticatedUser
+  ) {
+    const reviewedBy = this.actorName(actor, dto.reviewedBy);
+
     if (this.prisma?.isConfigured()) {
       const payment = await this.prisma.paymentEvidence.findUnique({
         where: { id: paymentId }
@@ -635,7 +764,7 @@ export class EventStoreService {
           data: {
             notes: dto.notes ?? payment.notes,
             reviewedAt,
-            reviewedBy: dto.reviewedBy,
+            reviewedBy,
             status: dto.status
           },
           where: { id: payment.id }
@@ -657,6 +786,20 @@ export class EventStoreService {
         return { payment: updatedPayment, ticket };
       });
 
+      await this.createAuditLog({
+        action: "payment.verify",
+        actor,
+        entityId: payment.id,
+        entityType: "payment_evidence",
+        eventId: payment.eventId,
+        fromStatus: payment.status,
+        metadata: {
+          reviewedBy,
+          ticketId: payment.ticketId
+        },
+        toStatus: verified.payment.status
+      });
+
       return {
         payment: this.toPaymentEvidence({
           ...verified.payment,
@@ -674,7 +817,7 @@ export class EventStoreService {
 
     payment.status = dto.status;
     payment.reviewedAt = now();
-    payment.reviewedBy = dto.reviewedBy;
+    payment.reviewedBy = reviewedBy;
     payment.notes = dto.notes ?? payment.notes;
 
     const ticket = this.findTicket(payment.ticketId);
@@ -741,6 +884,49 @@ export class EventStoreService {
     };
   }
 
+  private async createAuditLog(input: {
+    action: string;
+    actor?: AuthenticatedUser;
+    entityId: string;
+    entityType: string;
+    eventId?: string;
+    fromStatus?: string;
+    metadata?: AuditMetadata;
+    toStatus?: string;
+  }) {
+    if (!this.prisma?.isConfigured()) {
+      return;
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: input.action,
+        actor: this.actorName(input.actor),
+        entityId: input.entityId,
+        entityType: input.entityType,
+        eventId: input.eventId,
+        fromStatus: input.fromStatus,
+        metadata: this.auditMetadata(input.actor, input.metadata),
+        toStatus: input.toStatus
+      }
+    });
+  }
+
+  private actorName(actor?: AuthenticatedUser, fallback?: string) {
+    return actor?.name ?? fallback ?? "Sistema";
+  }
+
+  private auditMetadata(actor?: AuthenticatedUser, metadata: AuditMetadata = {}) {
+    const auditMetadata: AuditMetadata = { ...metadata };
+
+    if (actor) {
+      auditMetadata.actorId = actor.id;
+      auditMetadata.actorRole = actor.role;
+    }
+
+    return Object.keys(auditMetadata).length > 0 ? auditMetadata : undefined;
+  }
+
   private findEvent(eventId: string) {
     const event = this.events.find((item) => item.id === eventId);
     if (!event) {
@@ -756,6 +942,12 @@ export class EventStoreService {
       dto.name !== undefined ||
       dto.status !== undefined ||
       dto.venue !== undefined
+    );
+  }
+
+  private changedEventFields(dto: UpdateEventDto) {
+    return ["date", "expectedAttendees", "name", "status", "venue"].filter(
+      (field) => dto[field as keyof UpdateEventDto] !== undefined
     );
   }
 

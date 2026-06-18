@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards
+} from "@nestjs/common";
+import type { RequestWithUser } from "../auth/auth-token.guard";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import {
@@ -22,14 +32,18 @@ export class EventsController {
 
   @Roles("admin")
   @Post()
-  createEvent(@Body() body: CreateEventDto) {
-    return this.store.createEvent(body);
+  createEvent(@Body() body: CreateEventDto, @Req() request: RequestWithUser) {
+    return this.store.createEvent(body, request.user);
   }
 
   @Roles("admin")
   @Patch(":eventId")
-  updateEvent(@Param("eventId") eventId: string, @Body() body: UpdateEventDto) {
-    return this.store.updateEvent(eventId, body);
+  updateEvent(
+    @Param("eventId") eventId: string,
+    @Body() body: UpdateEventDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.updateEvent(eventId, body, request.user);
   }
 
   @Roles("supervisor", "admin")
@@ -54,17 +68,19 @@ export class EventsController {
   @Post(":eventId/distributors")
   addDistributor(
     @Param("eventId") eventId: string,
-    @Body() body: CreateDistributorDto
+    @Body() body: CreateDistributorDto,
+    @Req() request: RequestWithUser
   ) {
-    return this.store.addDistributor(eventId, body);
+    return this.store.addDistributor(eventId, body, request.user);
   }
 
   @Roles("admin")
   @Post(":eventId/tickets/batch")
   createTicketBatch(
     @Param("eventId") eventId: string,
-    @Body() body: CreateTicketBatchDto
+    @Body() body: CreateTicketBatchDto,
+    @Req() request: RequestWithUser
   ) {
-    return this.store.createTicketBatch(eventId, body);
+    return this.store.createTicketBatch(eventId, body, request.user);
   }
 }

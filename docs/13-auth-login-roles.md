@@ -331,6 +331,8 @@ El body enviado registra el nombre del usuario autenticado:
 
 La API actualiza la boleta a `used`, guarda `usedAt` y conserva `checkedInBy`. Si la boleta ya esta `used`, la API devuelve la boleta sin duplicar el ingreso. Si no esta `paid`, la API rechaza la operacion.
 
+Aunque el frontend envie `checkedInBy`, la API usa como fuente autoritativa el usuario autenticado en la sesion. Esto evita que una persona cambie manualmente el nombre desde DevTools para falsear quien registro el ingreso.
+
 ## Gestionar pagos
 
 Los usuarios `supervisor` y `admin` pueden validar evidencias desde:
@@ -363,6 +365,39 @@ Authorization: Bearer <token_supervisor_o_admin>
 ```
 
 Al aprobar una evidencia, la API actualiza la boleta asociada a `paid`. Al rechazarla, la evidencia queda `rejected` y la boleta conserva su estado actual.
+
+Aunque el frontend envie `reviewedBy`, la API usa como fuente autoritativa el usuario autenticado en la sesion. La pantalla mantiene el campo como solo lectura para que el operador vea quien quedara registrado.
+
+## Auditoria operativa
+
+La tabla `audit_logs` registra acciones sensibles cuando la API corre con Prisma/MySQL:
+
+```txt
+event.create
+event.update
+distributor.create
+ticket.batch_create
+ticket.assign
+ticket.sale
+ticket.check_in
+payment.verify
+```
+
+Cada registro guarda:
+
+```txt
+eventId
+entityType
+entityId
+action
+fromStatus
+toStatus
+actor
+metadata
+createdAt
+```
+
+`actor` sale de la sesion validada por la API, no de un campo editable del navegador. La metadata se limita a identificadores operativos y rol del actor; no debe guardar compradores, telefonos, URLs de evidencia ni referencias bancarias.
 
 ## Administrar usuarios
 

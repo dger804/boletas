@@ -185,20 +185,22 @@ export class RegisterSaleDto {
 }
 
 export class CheckInTicketDto {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
-  checkedInBy!: string;
+  checkedInBy?: string;
 }
 
 export class VerifyPaymentDto {
   @IsIn(EVIDENCE_STATUS_VALUES)
   status!: EvidenceStatus;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
-  reviewedBy!: string;
+  reviewedBy?: string;
 
   @IsOptional()
   @IsString()

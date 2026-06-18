@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import type { AuthenticatedUser } from "@boletas/shared";
 import { PrismaService } from "../src/database/prisma.service";
 import { EventStoreService } from "../src/events/event-store.service";
 
@@ -258,6 +259,82 @@ describe("EventStoreService", () => {
       },
       orderBy: { createdAt: "asc" },
       where: { eventId: "evt_db" }
+    });
+  });
+
+  it("records an audit log when checking in a Prisma ticket", async () => {
+    const actor: AuthenticatedUser = {
+      email: "porteria@example.com",
+      id: "usr_porteria",
+      name: "Porteria Real",
+      role: "regular"
+    };
+    const ticket = {
+      buyerName: "Comprador DB",
+      buyerPhone: "+57 311 000 0000",
+      capitalizationAmount: 15000,
+      checkedInBy: null,
+      code: "VIP-010",
+      createdAt: new Date("2026-05-29T00:00:00.000Z"),
+      distributorId: "dst_db",
+      eventId: "evt_db",
+      id: "tck_db",
+      notes: null,
+      paidAt: new Date("2026-05-29T00:00:00.000Z"),
+      paymentMethod: "transfer",
+      price: 90000,
+      recipientName: null,
+      soldAt: new Date("2026-05-29T00:00:00.000Z"),
+      status: "paid",
+      updatedAt: new Date("2026-05-29T00:00:00.000Z"),
+      usedAt: null
+    };
+    const updatedTicket = {
+      ...ticket,
+      checkedInBy: "Porteria Real",
+      status: "used",
+      usedAt: new Date("2026-05-29T01:00:00.000Z")
+    };
+    const findUnique = jest.fn().mockResolvedValue(ticket);
+    const update = jest.fn().mockResolvedValue(updatedTicket);
+    const create = jest.fn().mockResolvedValue({});
+    const prisma = {
+      auditLog: { create },
+      isConfigured: () => true,
+      ticket: { findUnique, update }
+    } as unknown as PrismaService;
+    const store = new EventStoreService(prisma);
+
+    await expect(
+      store.checkInTicket("tck_db", { checkedInBy: "Nombre Falso" }, actor)
+    ).resolves.toMatchObject({
+      checkedInBy: "Porteria Real",
+      status: "used"
+    });
+    expect(update).toHaveBeenCalledWith({
+      data: {
+        checkedInBy: "Porteria Real",
+        status: "used",
+        usedAt: expect.any(Date)
+      },
+      where: { id: "tck_db" }
+    });
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "ticket.check_in",
+        actor: "Porteria Real",
+        entityId: "tck_db",
+        entityType: "ticket",
+        eventId: "evt_db",
+        fromStatus: "paid",
+        metadata: expect.objectContaining({
+          actorId: "usr_porteria",
+          actorRole: "regular",
+          checkedInBy: "Porteria Real",
+          ticketCode: "VIP-010"
+        }),
+        toStatus: "used"
+      })
     });
   });
 
