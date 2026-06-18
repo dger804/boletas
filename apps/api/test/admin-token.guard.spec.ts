@@ -28,7 +28,7 @@ describe("AdminTokenGuard", () => {
     await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
   });
 
-  it("does not allow local bypass when production-like config exists", async () => {
+  it("rejects missing credentials when production-like config exists", async () => {
     const guard = new AdminTokenGuard(
       createConfig({
         AUTH_TOKEN_SECRET: "auth-secret",
@@ -37,14 +37,24 @@ describe("AdminTokenGuard", () => {
     );
 
     await expect(guard.canActivate(createContext({}))).rejects.toThrow(
-      ServiceUnavailableException
+      UnauthorizedException
     );
   });
 
-  it("fails closed in production when token is missing", async () => {
+  it("rejects missing credentials in production", async () => {
     const guard = new AdminTokenGuard(createConfig({ NODE_ENV: "production" }));
 
     await expect(guard.canActivate(createContext({}))).rejects.toThrow(
+      UnauthorizedException
+    );
+  });
+
+  it("fails closed when the legacy admin token is used but not configured", async () => {
+    const guard = new AdminTokenGuard(createConfig({ NODE_ENV: "production" }));
+
+    await expect(
+      guard.canActivate(createContext({ "x-admin-token": "provided-token" }))
+    ).rejects.toThrow(
       ServiceUnavailableException
     );
   });

@@ -19,7 +19,6 @@ export class AdminTokenGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext) {
-    const expectedToken = this.config.get<string>("ADMIN_API_TOKEN")?.trim();
     const request = context.switchToHttp().getRequest<{
       headers: Record<string, HeaderValue>;
     }>();
@@ -28,17 +27,23 @@ export class AdminTokenGuard implements CanActivate {
       return true;
     }
 
-    if (!expectedToken) {
-      if (this.allowsUnsafeLocalBypass()) {
-        return true;
-      }
-
-      throw new ServiceUnavailableException("admin token is not configured");
+    if (this.allowsUnsafeLocalBypass()) {
+      return true;
     }
 
     const providedToken = this.extractToken(request.headers);
 
-    if (!providedToken || !this.tokensMatch(providedToken, expectedToken)) {
+    if (!providedToken) {
+      throw new UnauthorizedException("missing admin token");
+    }
+
+    const expectedToken = this.config.get<string>("ADMIN_API_TOKEN")?.trim();
+
+    if (!expectedToken) {
+      throw new ServiceUnavailableException("admin token is not configured");
+    }
+
+    if (!this.tokensMatch(providedToken, expectedToken)) {
       throw new UnauthorizedException("invalid admin token");
     }
 
