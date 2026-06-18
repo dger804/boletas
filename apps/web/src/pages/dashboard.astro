@@ -169,6 +169,7 @@ const metrics = [
     value: money.format(dashboard.totals.grossSales),
     detail: `${dashboard.totals.paid} boletas pagadas`,
     detailField: "metric-gross-detail",
+    managerOnly: false,
     tone: "emerald",
     valueField: "metric-gross-value",
     icon: CircleDollarSign
@@ -178,6 +179,7 @@ const metrics = [
     value: money.format(dashboard.totals.pendingToCollect),
     detail: `${pendingValidation} ventas pendientes`,
     detailField: "metric-pending-detail",
+    managerOnly: false,
     tone: "amber",
     valueField: "metric-pending-value",
     icon: Upload
@@ -187,6 +189,7 @@ const metrics = [
     value: money.format(dashboard.totals.capitalization),
     detail: "Meta interna del evento",
     detailField: "metric-capitalization-detail",
+    managerOnly: true,
     tone: "zinc",
     valueField: "metric-capitalization-value",
     icon: WalletCards
@@ -196,6 +199,7 @@ const metrics = [
     value: `${dashboard.totals.used} / ${dashboard.event.expectedAttendees}`,
     detail: "Usadas el dia del evento",
     detailField: "metric-entry-detail",
+    managerOnly: false,
     tone: "rose",
     valueField: "metric-entry-value",
     icon: UserRoundCheck
@@ -328,12 +332,22 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
     };
 
     const renderAdminOnlyNavigation = (user: StoredUser) => {
+      const setRoleElementVisibility = (element: HTMLElement, visible: boolean) => {
+        element.classList.toggle("hidden", !visible);
+
+        const displayClass = element.dataset.roleDisplay;
+
+        if (displayClass) {
+          element.classList.toggle(displayClass, visible);
+        }
+      };
+
       document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
-        element.classList.toggle("hidden", user.role !== "admin");
+        setRoleElementVisibility(element, user.role === "admin");
       });
 
       document.querySelectorAll<HTMLElement>("[data-manager-only]").forEach((element) => {
-        element.classList.toggle("hidden", !["admin", "supervisor"].includes(user.role));
+        setRoleElementVisibility(element, ["admin", "supervisor"].includes(user.role));
       });
     };
 
@@ -481,7 +495,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
             <button class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50" title="Alertas">
               <Bell size={18} />
             </button>
-            <button class="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800">
+            <button class="hidden h-10 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800" data-admin-only data-role-display="inline-flex">
               <Plus size={18} />
               Boleta
             </button>
@@ -521,15 +535,17 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {
             metrics.map((metric) => (
-              <MetricCard
-                detail={metric.detail}
-                icon={metric.icon}
-                label={metric.label}
-                tone={metric.tone}
-                value={metric.value}
-                detailField={metric.detailField}
-                valueField={metric.valueField}
-              />
+              <div class={metric.managerOnly ? "hidden" : ""} data-manager-only={metric.managerOnly ? true : undefined}>
+                <MetricCard
+                  detail={metric.detail}
+                  icon={metric.icon}
+                  label={metric.label}
+                  tone={metric.tone}
+                  value={metric.value}
+                  detailField={metric.detailField}
+                  valueField={metric.valueField}
+                />
+              </div>
             ))
           }
         </section>
@@ -562,7 +578,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
               </div>
             </section>
 
-            <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <section class="hidden rounded-lg border border-zinc-200 bg-white p-4 shadow-sm" data-manager-only>
               <div class="flex items-center gap-3">
                 <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-amber-50 text-amber-700">
                   <ClipboardCheck size={18} />
@@ -580,10 +596,10 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         </section>
 
         <section class="grid gap-6 xl:grid-cols-[1fr_360px]">
-          <div data-dashboard-section="distribution">
+          <div class="hidden" data-dashboard-section="distribution" data-manager-only>
             <DistributionList rows={distributors} />
           </div>
-          <div data-dashboard-section="evidence">
+          <div class="hidden" data-dashboard-section="evidence" data-manager-only>
             <PaymentEvidenceList rows={evidenceRows} />
           </div>
         </section>
@@ -783,6 +799,37 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         }
       };
 
+      const applyStoredRoleVisibility = () => {
+        const storedUser = sessionStorage.getItem("boletas.auth.user");
+
+        if (!storedUser) {
+          return;
+        }
+
+        try {
+          const user = JSON.parse(storedUser) as { role?: string };
+          const setRoleElementVisibility = (element: HTMLElement, visible: boolean) => {
+            element.classList.toggle("hidden", !visible);
+
+            const displayClass = element.dataset.roleDisplay;
+
+            if (displayClass) {
+              element.classList.toggle(displayClass, visible);
+            }
+          };
+
+          document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
+            setRoleElementVisibility(element, user.role === "admin");
+          });
+
+          document.querySelectorAll<HTMLElement>("[data-manager-only]").forEach((element) => {
+            setRoleElementVisibility(element, ["admin", "supervisor"].includes(String(user.role)));
+          });
+        } catch {
+          return;
+        }
+      };
+
       const renderTickets = (dashboard: RuntimePublicDashboard) => {
         const rows = Array.isArray(dashboard.ticketSamples) ? dashboard.ticketSamples : [];
         const body = rows.length
@@ -815,7 +862,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
               </div>
               <div class="flex items-center gap-2">
                 <button class="h-9 rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50">Filtrar</button>
-                <button class="h-9 rounded-md bg-zinc-950 px-3 text-xs font-medium text-white hover:bg-zinc-800">Nueva</button>
+                <button class="hidden h-9 items-center rounded-md bg-zinc-950 px-3 text-xs font-medium text-white hover:bg-zinc-800" data-admin-only data-role-display="inline-flex">Nueva</button>
               </div>
             </div>
             <div class="overflow-x-auto">
@@ -928,6 +975,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         setSection("tickets", renderTickets(dashboard));
         setSection("distribution", renderDistribution(dashboard));
         setSection("evidence", renderEvidence(dashboard));
+        applyStoredRoleVisibility();
       };
 
       const token = sessionStorage.getItem("boletas.auth.token");

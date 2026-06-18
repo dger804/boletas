@@ -168,6 +168,23 @@ GET /api/public/events/:eventId/dashboard
 
 El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/summary` con el token guardado en `sessionStorage`. Esa ruta devuelve el mismo contrato sanitizado que la ruta publica, por lo que no expone compradores, telefonos, referencias ni URLs de evidencia a usuarios `regular`.
 
+En la interfaz del dashboard, el rol tambien reduce controles visibles:
+
+```txt
+regular
+- ve estado operativo, inventario resumido y entrada
+- no ve capitalizacion, corte rapido, distribucion ni evidencias recientes
+- no ve acciones de creacion de boletas
+
+supervisor
+- ve controles de supervision, capitalizacion, corte rapido, distribucion y evidencias
+- no ve acciones exclusivas de creacion administrativa
+
+admin
+- ve todo lo de supervisor
+- ve acciones de creacion administrativa como nueva boleta
+```
+
 ## Administrar eventos
 
 Los usuarios autenticados pueden entrar a:
