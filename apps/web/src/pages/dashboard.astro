@@ -429,6 +429,9 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/tickets">
             Boletas
           </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/check-in">
+            Entrada
+          </a>
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/payments">
             Pagos
           </a>
@@ -539,9 +542,9 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
                   <h2 class="text-sm font-semibold text-zinc-950">Entrada</h2>
                   <p class="mt-1 text-xs text-zinc-500">Validacion de boleta pagada</p>
                 </div>
-                <button class="inline-flex h-9 w-9 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700" title="Escanear">
+                <a class="inline-flex h-9 w-9 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700" href="/check-in" title="Escanear">
                   <ScanLine size={18} />
-                </button>
+                </a>
               </div>
               <div class="mt-4 grid grid-cols-2 divide-x divide-zinc-100 border-t border-zinc-100 pt-4">
                 <div class="pr-3">

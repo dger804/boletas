@@ -75,6 +75,8 @@ El endpoint completo `GET /api/events/:eventId/dashboard` queda protegido para `
 
 `GET /api/payments` queda protegido para `supervisor` y `admin` y devuelve cada evidencia con resumen de la boleta asociada (`ticketCode`, comprador, telefono y estado) cuando existe relacion disponible. Ese contexto no se usa en endpoints publicos sanitizados.
 
+`PATCH /api/tickets/:ticketId/check-in` queda disponible para `regular`, `supervisor` y `admin`. Solo permite registrar ingreso sobre boletas `paid`; al hacerlo cambia la boleta a `used`, registra `usedAt` y guarda `checkedInBy`. La pantalla estatica `/check-in` consume `GET /api/tickets?eventId=...` y este endpoint para operar entrada por evento.
+
 El frontend estatico renderiza un fallback y luego refresca el endpoint protegido `summary` desde el navegador con `Authorization: Bearer <token>`. Esto evita publicar `ADMIN_API_TOKEN` y evita que el dashboard quede congelado con datos del momento del build.
 
 ## Fallback local

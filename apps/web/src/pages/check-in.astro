@@ -3,27 +3,29 @@ import {
   CalendarDays,
   LogOut,
   RefreshCw,
+  ScanLine,
+  Search,
   ShieldCheck,
-  Ticket
+  Ticket,
+  UserRoundCheck
 } from "lucide-astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
 const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
 const authMeUrl = `${apiBase}/auth/me`;
 const eventsUrl = `${apiBase}/events`;
-const paymentsUrl = `${apiBase}/payments`;
+const ticketsUrl = `${apiBase}/tickets`;
 ---
 
-<BaseLayout title="Pagos | Boletas">
+<BaseLayout title="Entrada | Boletas">
   <span
     hidden
     data-auth-me-url={authMeUrl}
     data-events-url={eventsUrl}
-    data-payments-url={paymentsUrl}
+    data-tickets-url={ticketsUrl}
   ></span>
   <script>
     type EventStatus = "draft" | "active" | "closed";
-    type EvidenceStatus = "approved" | "pending" | "rejected";
     type PaymentMethod = "cash" | "transfer";
     type TicketStatus =
       | "assigned"
@@ -52,24 +54,28 @@ const paymentsUrl = `${apiBase}/payments`;
       createdAt: string;
     }
 
-    interface PaymentEvidenceRecord {
+    interface TicketRecord {
       id: string;
       eventId: string;
-      ticketId: string;
-      ticketCode?: string;
-      ticketBuyerName?: string;
-      ticketBuyerPhone?: string;
-      ticketStatus?: TicketStatus;
-      method: PaymentMethod;
-      amount: number;
+      code: string;
+      price: number;
+      status: TicketStatus;
+      distributorId?: string;
+      distributorName?: string;
+      distributorPhone?: string;
+      distributorEmail?: string;
+      distributorNotes?: string;
+      recipientName?: string;
+      buyerName?: string;
+      buyerPhone?: string;
+      paymentMethod?: PaymentMethod;
+      soldAt?: string;
+      paidAt?: string;
+      usedAt?: string;
+      checkedInBy?: string;
       capitalizationAmount: number;
-      evidenceUrl?: string;
-      reference?: string;
-      status: EvidenceStatus;
-      receivedAt: string;
-      reviewedAt?: string;
-      reviewedBy?: string;
       notes?: string;
+      createdAt: string;
     }
 
     interface AuthMeResponse {
@@ -78,8 +84,6 @@ const paymentsUrl = `${apiBase}/payments`;
 
     const allowedRoles = new Set(["regular", "supervisor", "admin"]);
     const allowedEventStatuses = new Set(["draft", "active", "closed"]);
-    const allowedEvidenceStatuses = new Set(["approved", "pending", "rejected"]);
-    const allowedPaymentMethods = new Set(["cash", "transfer"]);
     const allowedTicketStatuses = new Set([
       "assigned",
       "available",
@@ -89,40 +93,43 @@ const paymentsUrl = `${apiBase}/payments`;
       "used",
       "void"
     ]);
+    const allowedPaymentMethods = new Set(["cash", "transfer"]);
     const roleLabels: Record<UserRole, string> = {
       admin: "Admin",
       regular: "Regular",
       supervisor: "Supervisor"
     };
+    const ticketStatusLabels: Record<TicketStatus, string> = {
+      assigned: "Asignada",
+      available: "Disponible",
+      paid: "Pagada",
+      reserved: "Reservada",
+      sold: "Vendida",
+      used: "Usada",
+      void: "Bloqueada"
+    };
+    const ticketStatusClasses: Record<TicketStatus, string> = {
+      assigned: "bg-zinc-100 text-zinc-700",
+      available: "bg-sky-50 text-sky-700",
+      paid: "bg-emerald-50 text-emerald-700",
+      reserved: "bg-violet-50 text-violet-700",
+      sold: "bg-amber-50 text-amber-700",
+      used: "bg-indigo-50 text-indigo-700",
+      void: "bg-rose-50 text-rose-700"
+    };
     const paymentMethodLabels: Record<PaymentMethod, string> = {
       cash: "Efectivo",
       transfer: "Transferencia"
-    };
-    const statusLabels: Record<EvidenceStatus, string> = {
-      approved: "Aprobado",
-      pending: "Pendiente",
-      rejected: "Rechazado"
-    };
-    const statusClasses: Record<EvidenceStatus, string> = {
-      approved: "bg-emerald-50 text-emerald-700",
-      pending: "bg-amber-50 text-amber-700",
-      rejected: "bg-rose-50 text-rose-700"
     };
 
     let authToken = "";
     let currentUser: StoredUser | null = null;
     let currentEvents: EventRecord[] = [];
-    let currentPayments: PaymentEvidenceRecord[] = [];
-    let selectedPaymentId = "";
+    let currentTickets: TicketRecord[] = [];
     let selectedEventId = new URLSearchParams(window.location.search)
       .get("eventId")
       ?.trim() ?? "";
     const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-    const money = new Intl.NumberFormat("es-CO", {
-      currency: "COP",
-      maximumFractionDigits: 0,
-      style: "currency"
-    });
 
     const resolveApiUrl = (url: string | null | undefined) => {
       if (!url) {
@@ -153,7 +160,7 @@ const paymentsUrl = `${apiBase}/payments`;
       return {
         authMeUrl: resolveApiUrl(config?.dataset.authMeUrl),
         eventsUrl: resolveApiUrl(config?.dataset.eventsUrl),
-        paymentsUrl: resolveApiUrl(config?.dataset.paymentsUrl)
+        ticketsUrl: resolveApiUrl(config?.dataset.ticketsUrl)
       };
     };
 
@@ -192,39 +199,35 @@ const paymentsUrl = `${apiBase}/payments`;
       );
     };
 
-    const isPaymentEvidenceRecord = (value: unknown): value is PaymentEvidenceRecord => {
+    const isTicketRecord = (value: unknown): value is TicketRecord => {
       if (!value || typeof value !== "object") {
         return false;
       }
 
-      const payment = value as Partial<PaymentEvidenceRecord>;
+      const ticket = value as Partial<TicketRecord>;
       const optionalStringIsValid = (field: unknown) =>
         typeof field === "undefined" || typeof field === "string";
-      const ticketStatusIsValid =
-        typeof payment.ticketStatus === "undefined" ||
-        (typeof payment.ticketStatus === "string" &&
-          allowedTicketStatuses.has(payment.ticketStatus));
+      const paymentMethodIsValid =
+        typeof ticket.paymentMethod === "undefined" ||
+        (typeof ticket.paymentMethod === "string" &&
+          allowedPaymentMethods.has(ticket.paymentMethod));
 
       return (
-        typeof payment.id === "string" &&
-        typeof payment.eventId === "string" &&
-        typeof payment.ticketId === "string" &&
-        typeof payment.method === "string" &&
-        allowedPaymentMethods.has(payment.method) &&
-        typeof payment.amount === "number" &&
-        typeof payment.capitalizationAmount === "number" &&
-        typeof payment.status === "string" &&
-        allowedEvidenceStatuses.has(payment.status) &&
-        typeof payment.receivedAt === "string" &&
-        optionalStringIsValid(payment.ticketCode) &&
-        optionalStringIsValid(payment.ticketBuyerName) &&
-        optionalStringIsValid(payment.ticketBuyerPhone) &&
-        optionalStringIsValid(payment.evidenceUrl) &&
-        optionalStringIsValid(payment.reference) &&
-        optionalStringIsValid(payment.reviewedAt) &&
-        optionalStringIsValid(payment.reviewedBy) &&
-        optionalStringIsValid(payment.notes) &&
-        ticketStatusIsValid
+        typeof ticket.id === "string" &&
+        typeof ticket.eventId === "string" &&
+        typeof ticket.code === "string" &&
+        typeof ticket.price === "number" &&
+        typeof ticket.status === "string" &&
+        allowedTicketStatuses.has(ticket.status) &&
+        typeof ticket.capitalizationAmount === "number" &&
+        typeof ticket.createdAt === "string" &&
+        optionalStringIsValid(ticket.distributorName) &&
+        optionalStringIsValid(ticket.distributorPhone) &&
+        optionalStringIsValid(ticket.recipientName) &&
+        optionalStringIsValid(ticket.buyerName) &&
+        optionalStringIsValid(ticket.buyerPhone) &&
+        optionalStringIsValid(ticket.checkedInBy) &&
+        paymentMethodIsValid
       );
     };
 
@@ -298,7 +301,7 @@ const paymentsUrl = `${apiBase}/payments`;
     };
 
     const setStatus = (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
-      const element = document.querySelector<HTMLElement>("[data-payments-status]");
+      const element = document.querySelector<HTMLElement>("[data-checkin-status]");
 
       if (!element) {
         return;
@@ -387,8 +390,42 @@ const paymentsUrl = `${apiBase}/payments`;
       }).format(date);
     };
 
-    const getSelectedPayment = () =>
-      currentPayments.find((payment) => payment.id === selectedPaymentId) ?? null;
+    const normalizeSearch = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const getSearchTerm = () => {
+      const input = document.querySelector<HTMLInputElement>("[data-checkin-search]");
+
+      return normalizeSearch(input?.value ?? "");
+    };
+
+    const getVisibleTickets = () => {
+      const term = getSearchTerm();
+
+      if (!term) {
+        return currentTickets;
+      }
+
+      return currentTickets.filter((ticket) => {
+        const haystack = normalizeSearch(
+          [
+            ticket.code,
+            ticket.buyerName,
+            ticket.buyerPhone,
+            ticket.recipientName,
+            ticket.distributorName,
+            ticket.distributorPhone,
+            ticket.checkedInBy
+          ].join(" ")
+        );
+
+        return haystack.includes(term);
+      });
+    };
 
     const updateSelectedEvent = (eventId: string) => {
       selectedEventId = eventId;
@@ -405,7 +442,7 @@ const paymentsUrl = `${apiBase}/payments`;
 
     const renderEventOptions = () => {
       const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
-      const reviewEventName = document.querySelector<HTMLElement>("[data-review-event-name]");
+      const eventName = document.querySelector<HTMLElement>("[data-checkin-event-name]");
 
       if (!selector) {
         return;
@@ -414,8 +451,8 @@ const paymentsUrl = `${apiBase}/payments`;
       if (currentEvents.length === 0) {
         selector.innerHTML = `<option value="">Sin eventos</option>`;
         selector.setAttribute("disabled", "true");
-        if (reviewEventName) {
-          reviewEventName.textContent = "Selecciona un evento";
+        if (eventName) {
+          eventName.textContent = "Selecciona un evento";
         }
         return;
       }
@@ -432,182 +469,126 @@ const paymentsUrl = `${apiBase}/payments`;
         )
         .join("");
 
-      if (reviewEventName) {
+      if (eventName) {
         const event = currentEvents.find((item) => item.id === selectedEventId);
-        reviewEventName.textContent = event?.name ?? "Selecciona un evento";
+        eventName.textContent = event?.name ?? "Selecciona un evento";
       }
     };
 
-    const updateReviewPanel = () => {
-      const payment = getSelectedPayment();
-      const title = document.querySelector<HTMLElement>("[data-review-payment-title]");
-      const meta = document.querySelector<HTMLElement>("[data-review-payment-meta]");
-      const reviewedBy = document.querySelector<HTMLInputElement>('[name="reviewedBy"]');
-      const submitButton = document.querySelector<HTMLButtonElement>("[data-review-payment-submit]");
+    const renderMetrics = (tickets: TicketRecord[]) => {
+      const paid = tickets.filter((ticket) => ticket.status === "paid").length;
+      const used = tickets.filter((ticket) => ticket.status === "used").length;
+      const blocked = tickets.filter(
+        (ticket) => !["paid", "used"].includes(ticket.status)
+      ).length;
 
-      if (title) {
-        title.textContent = payment
-          ? `Boleta ${payment.ticketCode ?? payment.ticketId}`
-          : "Selecciona una evidencia";
-      }
-
-      if (meta) {
-        meta.textContent = payment
-          ? `${paymentMethodLabels[payment.method]} - ${money.format(payment.amount)}`
-          : "Pendiente de seleccion";
-      }
-
-      if (reviewedBy && currentUser) {
-        reviewedBy.value = currentUser.name;
-      }
-
-      if (submitButton) {
-        submitButton.disabled = !payment || payment.status !== "pending";
-      }
+      document.querySelectorAll("[data-checkin-total]").forEach((element) => {
+        element.textContent = `${tickets.length}`;
+      });
+      document.querySelectorAll("[data-checkin-ready]").forEach((element) => {
+        element.textContent = `${paid}`;
+      });
+      document.querySelectorAll("[data-checkin-used]").forEach((element) => {
+        element.textContent = `${used}`;
+      });
+      document.querySelectorAll("[data-checkin-blocked]").forEach((element) => {
+        element.textContent = `${blocked}`;
+      });
     };
 
-    const selectPaymentForReview = (paymentId: string, status: EvidenceStatus) => {
-      const payment = currentPayments.find((item) => item.id === paymentId);
+    const renderTickets = () => {
+      const body = document.querySelector<HTMLElement>("[data-checkin-body]");
+      const tickets = getVisibleTickets();
 
-      if (!payment) {
-        setStatus("No se encontro la evidencia seleccionada.", "error");
-        return;
-      }
-
-      if (payment.status !== "pending") {
-        setStatus("Esta evidencia ya fue revisada.", "error");
-        return;
-      }
-
-      selectedPaymentId = payment.id;
-      const statusSelect = document.querySelector<HTMLSelectElement>('[name="status"]');
-
-      if (statusSelect) {
-        statusSelect.value = status;
-      }
-
-      updateReviewPanel();
-      setStatus(`Revision preparada para ${payment.ticketCode ?? payment.ticketId}.`);
-    };
-
-    const renderPayments = (payments: PaymentEvidenceRecord[]) => {
-      const body = document.querySelector<HTMLElement>("[data-payments-body]");
-      const count = document.querySelector<HTMLElement>("[data-payments-count]");
-      const pending = document.querySelector<HTMLElement>("[data-payments-pending]");
-      const approved = document.querySelector<HTMLElement>("[data-payments-approved]");
-      const total = document.querySelector<HTMLElement>("[data-payments-total]");
-
-      if (count) {
-        count.textContent = `${payments.length}`;
-      }
-
-      if (pending) {
-        pending.textContent = `${payments.filter((payment) => payment.status === "pending").length}`;
-      }
-
-      if (approved) {
-        approved.textContent = `${payments.filter((payment) => payment.status === "approved").length}`;
-      }
-
-      if (total) {
-        total.textContent = money.format(
-          payments
-            .filter((payment) => payment.status === "approved")
-            .reduce((sum, payment) => sum + payment.amount, 0)
-        );
-      }
+      renderMetrics(currentTickets);
 
       if (!body) {
         return;
       }
 
-      if (payments.length === 0) {
+      if (currentTickets.length === 0) {
         body.innerHTML = `
           <tr>
-            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="9">
-              Sin evidencias registradas para este evento
+            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="7">
+              Sin boletas para este evento
             </td>
           </tr>
         `;
         return;
       }
 
-      body.innerHTML = payments
-        .map((payment) => {
-          const statusLabel = statusLabels[payment.status];
-          const statusClass = statusClasses[payment.status];
-          const buyer = payment.ticketBuyerName ?? "Sin comprador";
-          const phone = payment.ticketBuyerPhone
-            ? `<p class="mt-1 text-xs text-zinc-500">${escapeHtml(payment.ticketBuyerPhone)}</p>`
+      if (tickets.length === 0) {
+        body.innerHTML = `
+          <tr>
+            <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="7">
+              Sin coincidencias
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      body.innerHTML = tickets
+        .map((ticket) => {
+          const statusClass = ticketStatusClasses[ticket.status];
+          const statusLabel = ticketStatusLabels[ticket.status];
+          const buyer = ticket.buyerName ?? ticket.recipientName ?? "Sin titular";
+          const buyerPhone = ticket.buyerPhone
+            ? `<p class="mt-1 text-xs text-zinc-500">${escapeHtml(ticket.buyerPhone)}</p>`
             : "";
-          const evidenceLink = payment.evidenceUrl
+          const responsible = ticket.distributorName ?? "Sin responsable";
+          const responsiblePhone = ticket.distributorPhone
+            ? `<p class="mt-1 text-xs text-zinc-500">${escapeHtml(ticket.distributorPhone)}</p>`
+            : "";
+          const paidAt = ticket.paidAt ? formatDate(ticket.paidAt) : "Sin pago aprobado";
+          const entry = ticket.usedAt
             ? `
-              <a
-                class="inline-flex items-center gap-1 text-sm font-medium text-zinc-950 underline-offset-4 hover:underline"
-                href="${escapeHtml(payment.evidenceUrl)}"
-                rel="noreferrer"
-                target="_blank"
-              >
-                Evidencia
-              </a>
+              <p class="text-sm font-medium text-zinc-950">${escapeHtml(formatDate(ticket.usedAt))}</p>
+              <p class="mt-1 text-xs text-zinc-500">${escapeHtml(ticket.checkedInBy ?? "Ingreso registrado")}</p>
             `
-            : `<span class="text-sm text-zinc-400">Sin archivo</span>`;
-          const actions =
-            payment.status === "pending"
+            : `<span class="text-sm text-zinc-400">Sin ingreso</span>`;
+          const action =
+            ticket.status === "paid"
               ? `
-                <div class="flex justify-end gap-2">
-                  <button
-                    class="inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700"
-                    data-review-payment="${escapeHtml(payment.id)}"
-                    data-review-status="approved"
-                    type="button"
-                  >
-                    Aprobar
-                  </button>
-                  <button
-                    class="inline-flex h-9 items-center rounded-md border border-rose-200 px-3 text-sm font-medium text-rose-700 hover:bg-rose-50"
-                    data-review-payment="${escapeHtml(payment.id)}"
-                    data-review-status="rejected"
-                    type="button"
-                  >
-                    Rechazar
-                  </button>
-                </div>
+                <button
+                  class="inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700"
+                  data-check-in-ticket="${escapeHtml(ticket.id)}"
+                  type="button"
+                >
+                  Registrar ingreso
+                </button>
               `
-              : `<span class="text-xs text-zinc-400">${escapeHtml(payment.reviewedBy ?? "Revisado")}</span>`;
+              : ticket.status === "used"
+                ? `<span class="text-xs font-medium text-indigo-700">Ya ingresada</span>`
+                : `<span class="text-xs text-zinc-400">No permitida</span>`;
 
           return `
             <tr class="align-top hover:bg-zinc-50">
-              <td class="whitespace-nowrap px-4 py-3 font-medium text-zinc-950">
-                ${escapeHtml(payment.ticketCode ?? payment.ticketId)}
+              <td class="whitespace-nowrap px-4 py-3 font-semibold text-zinc-950">
+                ${escapeHtml(ticket.code)}
               </td>
               <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
                 <p>${escapeHtml(buyer)}</p>
-                ${phone}
+                ${buyerPhone}
               </td>
-              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
-                ${escapeHtml(paymentMethodLabels[payment.method])}
+              <td class="min-w-56 px-4 py-3 text-sm text-zinc-600">
+                <p>${escapeHtml(responsible)}</p>
+                ${responsiblePhone}
               </td>
               <td class="whitespace-nowrap px-4 py-3">
                 <span class="rounded-md px-2 py-1 text-xs font-medium ${statusClass}">
                   ${escapeHtml(statusLabel)}
                 </span>
               </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">
-                ${escapeHtml(money.format(payment.amount))}
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-right text-sm text-zinc-600">
-                ${escapeHtml(money.format(payment.capitalizationAmount))}
-              </td>
-              <td class="min-w-44 px-4 py-3 text-sm text-zinc-600">
-                <p>${escapeHtml(payment.reference ?? "Sin referencia")}</p>
-                <div class="mt-1">${evidenceLink}</div>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
+                ${escapeHtml(ticket.paymentMethod ? paymentMethodLabels[ticket.paymentMethod] : "Sin metodo")}
+                <p class="mt-1 text-xs text-zinc-400">${escapeHtml(paidAt)}</p>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
-                ${escapeHtml(formatDate(payment.receivedAt))}
+                ${entry}
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
-                ${actions}
+                ${action}
               </td>
             </tr>
           `;
@@ -615,42 +596,32 @@ const paymentsUrl = `${apiBase}/payments`;
         .join("");
     };
 
-    const loadPayments = async () => {
-      const { paymentsUrl } = getConfig();
+    const loadTickets = async () => {
+      const { ticketsUrl } = getConfig();
 
-      if (!paymentsUrl) {
-        setStatus("No se encontro la ruta de pagos.", "error");
+      if (!ticketsUrl) {
+        setStatus("No se encontro la ruta de boletas.", "error");
         return;
       }
 
       if (!selectedEventId) {
-        currentPayments = [];
-        selectedPaymentId = "";
-        renderPayments([]);
-        updateReviewPanel();
-        setStatus("Selecciona un evento para ver pagos.");
+        currentTickets = [];
+        renderTickets();
+        setStatus("Selecciona un evento para registrar ingreso.");
         return;
       }
 
-      setStatus("Cargando pagos.");
+      setStatus("Cargando boletas.");
 
       try {
-        const url = `${paymentsUrl}?eventId=${encodeURIComponent(selectedEventId)}`;
+        const url = `${ticketsUrl}?eventId=${encodeURIComponent(selectedEventId)}`;
         const payload = await requestJson<unknown[]>(url);
-        const payments = Array.isArray(payload)
-          ? payload.filter(isPaymentEvidenceRecord)
-          : [];
-
-        currentPayments = payments;
-        if (!currentPayments.some((payment) => payment.id === selectedPaymentId)) {
-          selectedPaymentId = "";
-        }
-        renderPayments(payments);
-        updateReviewPanel();
-        setStatus("Pagos actualizados.", "success");
+        currentTickets = Array.isArray(payload) ? payload.filter(isTicketRecord) : [];
+        renderTickets();
+        setStatus("Boletas actualizadas.", "success");
       } catch (error) {
         setStatus(
-          error instanceof Error ? error.message : "No fue posible cargar pagos.",
+          error instanceof Error ? error.message : "No fue posible cargar boletas.",
           "error"
         );
       }
@@ -672,12 +643,10 @@ const paymentsUrl = `${apiBase}/payments`;
         renderEventOptions();
 
         if (selectedEventId) {
-          await loadPayments();
+          await loadTickets();
         } else {
-          currentPayments = [];
-          selectedPaymentId = "";
-          renderPayments([]);
-          updateReviewPanel();
+          currentTickets = [];
+          renderTickets();
           setStatus("No hay eventos para consultar.");
         }
       } catch (error) {
@@ -688,8 +657,52 @@ const paymentsUrl = `${apiBase}/payments`;
       }
     };
 
-    const bindPaymentActions = () => {
-      document.querySelector("[data-refresh-payments]")?.addEventListener("click", () => {
+    const checkInTicket = async (ticketId: string) => {
+      const { ticketsUrl } = getConfig();
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticketsUrl || !ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      if (ticket.status !== "paid") {
+        setStatus("La boleta debe estar pagada antes de registrar ingreso.", "error");
+        return;
+      }
+
+      setStatus(`Registrando ingreso de ${ticket.code}.`);
+
+      try {
+        const updated = await requestJson<TicketRecord>(
+          `${ticketsUrl}/${encodeURIComponent(ticket.id)}/check-in`,
+          {
+            body: JSON.stringify({
+              checkedInBy: currentUser?.name ?? "Porteria"
+            }),
+            method: "PATCH"
+          }
+        );
+
+        if (!isTicketRecord(updated)) {
+          throw new Error("La API no devolvio una boleta valida.");
+        }
+
+        currentTickets = currentTickets.map((item) =>
+          item.id === updated.id ? updated : item
+        );
+        renderTickets();
+        setStatus(`Ingreso registrado para ${updated.code}.`, "success");
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible registrar ingreso.",
+          "error"
+        );
+      }
+    };
+
+    const bindCheckInActions = () => {
+      document.querySelector("[data-refresh-checkin]")?.addEventListener("click", () => {
         void loadEvents();
       });
 
@@ -698,92 +711,39 @@ const paymentsUrl = `${apiBase}/payments`;
         ?.addEventListener("change", (event) => {
           const target = event.currentTarget as HTMLSelectElement;
           updateSelectedEvent(target.value);
-          void loadPayments();
+          void loadTickets();
         });
 
-      document.querySelector("[data-payments-body]")?.addEventListener("click", (event) => {
+      document
+        .querySelector<HTMLInputElement>("[data-checkin-search]")
+        ?.addEventListener("input", () => {
+          renderTickets();
+        });
+
+      document.querySelector("[data-clear-checkin-search]")?.addEventListener("click", () => {
+        const input = document.querySelector<HTMLInputElement>("[data-checkin-search]");
+
+        if (input) {
+          input.value = "";
+        }
+
+        renderTickets();
+      });
+
+      document.querySelector("[data-checkin-body]")?.addEventListener("click", (event) => {
         const target = event.target;
 
         if (!(target instanceof HTMLElement)) {
           return;
         }
 
-        const button = target.closest<HTMLButtonElement>("[data-review-payment]");
-        const status = button?.dataset.reviewStatus;
+        const button = target.closest<HTMLButtonElement>("[data-check-in-ticket]");
 
-        if (
-          !button?.dataset.reviewPayment ||
-          (status !== "approved" && status !== "rejected")
-        ) {
+        if (!button?.dataset.checkInTicket) {
           return;
         }
 
-        selectPaymentForReview(button.dataset.reviewPayment, status);
-      });
-    };
-
-    const bindReviewForm = () => {
-      const form = document.querySelector<HTMLFormElement>("[data-review-payment-form]");
-
-      form?.addEventListener("submit", async (event) => {
-        event.preventDefault();
-
-        const { paymentsUrl } = getConfig();
-        const payment = getSelectedPayment();
-        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
-
-        if (!paymentsUrl || !payment) {
-          setStatus("Selecciona una evidencia antes de validar.", "error");
-          return;
-        }
-
-        if (payment.status !== "pending") {
-          setStatus("Esta evidencia ya fue revisada.", "error");
-          return;
-        }
-
-        const formData = new FormData(form);
-        const status = String(formData.get("status") ?? "approved");
-        const notes = String(formData.get("notes") ?? "").trim();
-        const reviewedBy = String(formData.get("reviewedBy") ?? "").trim();
-
-        if (status !== "approved" && status !== "rejected") {
-          setStatus("Selecciona una decision valida.", "error");
-          return;
-        }
-
-        if (!reviewedBy) {
-          setStatus("Registra quien revisa el pago.", "error");
-          return;
-        }
-
-        submitButton?.setAttribute("disabled", "true");
-
-        try {
-          await requestJson<{ payment: PaymentEvidenceRecord; ticket: unknown }>(
-            `${paymentsUrl}/${encodeURIComponent(payment.id)}/verify`,
-            {
-              body: JSON.stringify({
-                reviewedBy,
-                status,
-                ...(notes ? { notes } : {})
-              }),
-              method: "PATCH"
-            }
-          );
-          form.reset();
-          selectedPaymentId = "";
-          setStatus("Pago actualizado.", "success");
-          await loadPayments();
-        } catch (error) {
-          setStatus(
-            error instanceof Error ? error.message : "No fue posible validar el pago.",
-            "error"
-          );
-        } finally {
-          submitButton?.removeAttribute("disabled");
-          updateReviewPanel();
-        }
+        void checkInTicket(button.dataset.checkInTicket);
       });
     };
 
@@ -801,8 +761,7 @@ const paymentsUrl = `${apiBase}/payments`;
         whenReady(() => {
           renderUser(user);
           bindLogout();
-          bindPaymentActions();
-          bindReviewForm();
+          bindCheckInActions();
         });
 
         validateSession(authMeUrl, token)
@@ -810,12 +769,6 @@ const paymentsUrl = `${apiBase}/payments`;
             sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
             renderUser(apiUser);
             renderAdminOnly(apiUser);
-
-            if (apiUser.role === "regular") {
-              window.location.replace("/dashboard");
-              return;
-            }
-
             void loadEvents();
           })
           .catch(() => {
@@ -836,7 +789,7 @@ const paymentsUrl = `${apiBase}/payments`;
           </span>
           <div>
             <p class="text-sm font-semibold text-zinc-950">Boletas</p>
-            <p class="text-xs text-zinc-500">Pagos</p>
+            <p class="text-xs text-zinc-500">Entrada</p>
           </div>
         </div>
 
@@ -853,10 +806,10 @@ const paymentsUrl = `${apiBase}/payments`;
           <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/tickets">
             Boletas
           </a>
-          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/check-in">
+          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/check-in">
             Entrada
           </a>
-          <a class="rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" href="/payments">
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/payments">
             Pagos
           </a>
         </nav>
@@ -879,10 +832,10 @@ const paymentsUrl = `${apiBase}/payments`;
           <div>
             <div class="flex items-center gap-2 text-xs font-medium text-zinc-500">
               <CalendarDays size={14} />
-              <span>Validacion por evento</span>
+              <span>Control de ingreso</span>
             </div>
             <h1 class="mt-2 text-2xl font-semibold text-zinc-950">
-              Pagos
+              Entrada
             </h1>
           </div>
 
@@ -895,7 +848,7 @@ const paymentsUrl = `${apiBase}/payments`;
             </select>
             <button
               class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              data-refresh-payments
+              data-refresh-checkin
               title="Actualizar"
               type="button"
             >
@@ -927,96 +880,76 @@ const paymentsUrl = `${apiBase}/payments`;
       </header>
 
       <div class="space-y-6 p-4 sm:p-6">
-        <p class="hidden rounded-md border px-3 py-2 text-sm" data-payments-status></p>
+        <p class="hidden rounded-md border px-3 py-2 text-sm" data-checkin-status></p>
 
         <section class="grid gap-4 md:grid-cols-4">
           <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-medium uppercase text-zinc-500">Evidencias</p>
-            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-count>0</p>
+            <p class="text-xs font-medium uppercase text-zinc-500">Boletas</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-checkin-total>0</p>
           </div>
           <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-medium uppercase text-zinc-500">Pendientes</p>
-            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-pending>0</p>
+            <p class="text-xs font-medium uppercase text-zinc-500">Por ingresar</p>
+            <p class="mt-2 text-2xl font-semibold text-emerald-700" data-checkin-ready>0</p>
           </div>
           <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-medium uppercase text-zinc-500">Aprobadas</p>
-            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-approved>0</p>
+            <p class="text-xs font-medium uppercase text-zinc-500">Ingresadas</p>
+            <p class="mt-2 text-2xl font-semibold text-indigo-700" data-checkin-used>0</p>
           </div>
           <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-medium uppercase text-zinc-500">Recaudo aprobado</p>
-            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-payments-total>$0</p>
+            <p class="text-xs font-medium uppercase text-zinc-500">No permitidas</p>
+            <p class="mt-2 text-2xl font-semibold text-rose-700" data-checkin-blocked>0</p>
           </div>
         </section>
 
-        <section class="grid gap-6 xl:grid-cols-[360px_1fr]">
+        <section class="grid gap-6 xl:grid-cols-[320px_1fr]">
           <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <div class="flex items-center gap-3">
-              <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
-                <ShieldCheck size={18} />
+              <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-emerald-600 text-white">
+                <ScanLine size={18} />
               </span>
               <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Validar pago</h2>
-                <p class="mt-1 text-xs text-zinc-500" data-review-event-name>Selecciona un evento</p>
+                <h2 class="text-sm font-semibold text-zinc-950">Validar entrada</h2>
+                <p class="mt-1 text-xs text-zinc-500" data-checkin-event-name>Selecciona un evento</p>
               </div>
             </div>
 
-            <div class="mt-4 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3">
-              <p class="text-sm font-semibold text-zinc-950" data-review-payment-title>
-                Selecciona una evidencia
-              </p>
-              <p class="mt-1 text-xs text-zinc-500" data-review-payment-meta>
-                Pendiente de seleccion
-              </p>
-            </div>
-
-            <form class="mt-5 grid gap-4" data-review-payment-form>
-              <label class="grid gap-2">
-                <span class="text-sm font-medium text-zinc-700">Decision</span>
-                <select
-                  class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
-                  name="status"
-                >
-                  <option value="approved">Aprobar</option>
-                  <option value="rejected">Rechazar</option>
-                </select>
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-sm font-medium text-zinc-700">Revisado por</span>
+            <label class="mt-5 grid gap-2">
+              <span class="text-sm font-medium text-zinc-700">Busqueda</span>
+              <span class="relative block">
+                <Search class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
                 <input
-                  class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
-                  maxlength="120"
-                  name="reviewedBy"
-                  required
-                  type="text"
+                  class="h-10 w-full rounded-md border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-950 outline-none focus:border-zinc-500"
+                  data-checkin-search
+                  placeholder="Codigo, comprador o responsable"
+                  type="search"
                 />
-              </label>
+              </span>
+            </label>
 
-              <label class="grid gap-2">
-                <span class="text-sm font-medium text-zinc-700">Notas</span>
-                <textarea
-                  class="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-                  maxlength="500"
-                  name="notes"
-                ></textarea>
-              </label>
+            <button
+              class="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-clear-checkin-search
+              type="button"
+            >
+              Limpiar busqueda
+            </button>
 
-              <button
-                class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                data-review-payment-submit
-                disabled
-                type="submit"
-              >
-                Guardar validacion
-              </button>
-            </form>
+            <div class="mt-5 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3">
+              <div class="flex items-center gap-3">
+                <UserRoundCheck class="text-emerald-600" size={18} />
+                <div>
+                  <p class="text-sm font-semibold text-zinc-950">Registra quien ingresa</p>
+                  <p class="mt-1 text-xs text-zinc-500" data-auth-user-name>Usuario</p>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 border-b border-zinc-200 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="text-sm font-semibold text-zinc-950">Evidencias</h2>
-                <p class="mt-1 text-xs text-zinc-500">Pagos reportados del evento seleccionado</p>
+                <h2 class="text-sm font-semibold text-zinc-950">Ingreso</h2>
+                <p class="mt-1 text-xs text-zinc-500">Boletas del evento seleccionado</p>
               </div>
             </div>
 
@@ -1024,21 +957,19 @@ const paymentsUrl = `${apiBase}/payments`;
               <table class="min-w-full divide-y divide-zinc-100 text-left">
                 <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
                   <tr>
-                    <th class="px-4 py-3 font-medium">Boleta</th>
-                    <th class="px-4 py-3 font-medium">Comprador</th>
-                    <th class="px-4 py-3 font-medium">Metodo</th>
+                    <th class="px-4 py-3 font-medium">Codigo</th>
+                    <th class="px-4 py-3 font-medium">Titular</th>
+                    <th class="px-4 py-3 font-medium">Responsable</th>
                     <th class="px-4 py-3 font-medium">Estado</th>
-                    <th class="px-4 py-3 text-right font-medium">Valor</th>
-                    <th class="px-4 py-3 text-right font-medium">Capitalizacion</th>
-                    <th class="px-4 py-3 font-medium">Soporte</th>
-                    <th class="px-4 py-3 font-medium">Recibido</th>
+                    <th class="px-4 py-3 font-medium">Pago</th>
+                    <th class="px-4 py-3 font-medium">Ingreso</th>
                     <th class="px-4 py-3 text-right font-medium">Accion</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-zinc-100 bg-white" data-payments-body>
+                <tbody class="divide-y divide-zinc-100 bg-white" data-checkin-body>
                   <tr>
-                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="9">
-                      Cargando pagos
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="7">
+                      Cargando boletas
                     </td>
                   </tr>
                 </tbody>

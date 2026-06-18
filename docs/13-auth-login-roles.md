@@ -267,6 +267,33 @@ La venta exige comprador, metodo y valor recibido. Referencia, telefono, URL de 
 
 La API bloquea registrar una segunda venta sobre boletas `sold`, `paid`, `used` o `void` para evitar evidencias duplicadas sobre la misma boleta.
 
+## Registrar entrada
+
+Los usuarios `regular`, `supervisor` y `admin` pueden registrar ingreso desde:
+
+```txt
+https://boletas.corporacionceer.com/check-in
+```
+
+La pantalla permite seleccionar un evento, buscar por codigo, comprador, telefono o responsable, y listar las boletas con su estado operativo.
+
+Las boletas en estado `paid` muestran la accion `Registrar ingreso`, que consume:
+
+```txt
+PATCH /api/tickets/:ticketId/check-in
+Authorization: Bearer <token>
+```
+
+El body enviado registra el nombre del usuario autenticado:
+
+```json
+{
+  "checkedInBy": "Nombre del usuario"
+}
+```
+
+La API actualiza la boleta a `used`, guarda `usedAt` y conserva `checkedInBy`. Si la boleta ya esta `used`, la API devuelve la boleta sin duplicar el ingreso. Si no esta `paid`, la API rechaza la operacion.
+
 ## Gestionar pagos
 
 Los usuarios `supervisor` y `admin` pueden validar evidencias desde:
@@ -422,8 +449,7 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Conectar entrada/check-in a una pantalla operativa.
-2. Agregar edicion de eventos.
-3. Agregar cambio de contrasena desde la pantalla de usuarios.
-4. Mejorar manejo visible de expiracion de sesion.
-5. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Agregar edicion de eventos.
+2. Agregar cambio de contrasena desde la pantalla de usuarios.
+3. Mejorar manejo visible de expiracion de sesion.
+4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
