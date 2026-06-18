@@ -399,6 +399,21 @@ createdAt
 
 `actor` sale de la sesion validada por la API, no de un campo editable del navegador. La metadata se limita a identificadores operativos y rol del actor; no debe guardar compradores, telefonos, URLs de evidencia ni referencias bancarias.
 
+Los usuarios `supervisor` y `admin` pueden consultar la auditoria desde:
+
+```txt
+https://boletas.corporacionceer.com/audit
+```
+
+La pantalla consume:
+
+```txt
+GET /api/audit?eventId=<event_id>&take=100
+Authorization: Bearer <token_supervisor_o_admin>
+```
+
+`eventId` es opcional. `take` se limita del lado de la API entre 1 y 200 registros para evitar respuestas pesadas. La respuesta devuelve `{ logs: AuditLogRecord[] }` con metadata saneada a valores primitivos.
+
 ## Administrar usuarios
 
 Los usuarios `admin` pueden administrar cuentas desde el frontend:

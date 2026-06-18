@@ -115,6 +115,21 @@ export interface PaymentEvidence {
   notes?: string;
 }
 
+export type AuditLogMetadata = Record<string, string | number | boolean | null>;
+
+export interface AuditLogRecord {
+  id: string;
+  eventId?: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  fromStatus?: string;
+  toStatus?: string;
+  actor?: string;
+  metadata?: AuditLogMetadata;
+  createdAt: string;
+}
+
 export interface EventDashboard {
   event: EventRecord;
   totals: {

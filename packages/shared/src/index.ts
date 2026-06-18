@@ -9,6 +9,8 @@ export {
 
 export type {
   AuthenticatedUser,
+  AuditLogMetadata,
+  AuditLogRecord,
   Distributor,
   EventDashboard,
   EventRecord,

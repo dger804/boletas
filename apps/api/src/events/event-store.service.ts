@@ -7,6 +7,7 @@ import {
 import { randomUUID } from "node:crypto";
 import type {
   AuthenticatedUser,
+  AuditLogRecord,
   Distributor,
   EventDashboard,
   EventRecord,
@@ -16,6 +17,7 @@ import type {
   TicketStatus
 } from "@boletas/shared";
 import type {
+  AuditLog as PrismaAuditLog,
   Distributor as PrismaDistributor,
   Event as PrismaEvent,
   PaymentEvidence as PrismaPaymentEvidence,
@@ -742,6 +744,20 @@ export class EventStoreService {
     return payments.map((payment) => this.withPaymentTicketSummary(payment));
   }
 
+  async listAuditLogs(filters: { eventId?: string; take?: number } = {}) {
+    if (!this.prisma?.isConfigured()) {
+      return [] satisfies AuditLogRecord[];
+    }
+
+    const logs = await this.prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: this.auditLogTake(filters.take),
+      where: filters.eventId ? { eventId: filters.eventId } : undefined
+    });
+
+    return logs.map((log) => this.toAuditLogRecord(log));
+  }
+
   async verifyPayment(
     paymentId: string,
     dto: VerifyPaymentDto,
@@ -925,6 +941,13 @@ export class EventStoreService {
     }
 
     return Object.keys(auditMetadata).length > 0 ? auditMetadata : undefined;
+  }
+
+  private auditLogTake(value?: number) {
+    const numericValue =
+      typeof value === "number" && Number.isFinite(value) ? value : 100;
+
+    return Math.min(Math.max(Math.trunc(numericValue), 1), 200);
   }
 
   private findEvent(eventId: string) {
@@ -1119,5 +1142,41 @@ export class EventStoreService {
       reviewedBy: payment.reviewedBy ?? undefined,
       notes: payment.notes ?? undefined
     };
+  }
+
+  private toAuditLogRecord(log: PrismaAuditLog): AuditLogRecord {
+    return {
+      id: log.id,
+      eventId: log.eventId ?? undefined,
+      entityType: log.entityType,
+      entityId: log.entityId,
+      action: log.action,
+      fromStatus: log.fromStatus ?? undefined,
+      toStatus: log.toStatus ?? undefined,
+      actor: log.actor ?? undefined,
+      metadata: this.toAuditLogMetadata(log.metadata),
+      createdAt: log.createdAt.toISOString()
+    };
+  }
+
+  private toAuditLogMetadata(metadata: unknown): AuditLogRecord["metadata"] {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      return undefined;
+    }
+
+    const safeMetadata: AuditLogRecord["metadata"] = {};
+
+    for (const [key, value] of Object.entries(metadata)) {
+      if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        value === null
+      ) {
+        safeMetadata[key] = value;
+      }
+    }
+
+    return Object.keys(safeMetadata).length > 0 ? safeMetadata : undefined;
   }
 }

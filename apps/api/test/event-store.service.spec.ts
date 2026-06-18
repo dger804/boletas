@@ -338,6 +338,60 @@ describe("EventStoreService", () => {
     });
   });
 
+  it("lists sanitized Prisma audit logs", async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        action: "payment.verify",
+        actor: "Supervisor Real",
+        createdAt: new Date("2026-05-29T01:00:00.000Z"),
+        entityId: "pay_db",
+        entityType: "payment_evidence",
+        eventId: "evt_db",
+        fromStatus: "pending",
+        id: "aud_db",
+        metadata: {
+          actorId: "usr_supervisor",
+          actorRole: "supervisor",
+          nested: { ignored: true },
+          reviewedBy: "Supervisor Real",
+          tags: ["ignored"]
+        },
+        toStatus: "approved"
+      }
+    ]);
+    const prisma = {
+      auditLog: { findMany },
+      isConfigured: () => true
+    } as unknown as PrismaService;
+    const store = new EventStoreService(prisma);
+
+    await expect(
+      store.listAuditLogs({ eventId: "evt_db", take: 500 })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        action: "payment.verify",
+        actor: "Supervisor Real",
+        createdAt: "2026-05-29T01:00:00.000Z",
+        entityId: "pay_db",
+        entityType: "payment_evidence",
+        eventId: "evt_db",
+        fromStatus: "pending",
+        id: "aud_db",
+        metadata: {
+          actorId: "usr_supervisor",
+          actorRole: "supervisor",
+          reviewedBy: "Supervisor Real"
+        },
+        toStatus: "approved"
+      })
+    ]);
+    expect(findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      where: { eventId: "evt_db" }
+    });
+  });
+
   it("does not allow check-in before payment approval", async () => {
     const store = new EventStoreService();
     const tickets = await store.createTicketBatch("evt_demo", {
