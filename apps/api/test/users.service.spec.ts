@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import type { AppUser } from "@prisma/client";
+import { verifyPassword } from "../src/auth/passwords";
 import { UsersService } from "../src/auth/users.service";
 import { PrismaService } from "../src/database/prisma.service";
 
@@ -96,6 +97,27 @@ describe("UsersService", () => {
     });
     expect(response.role).toBe("supervisor");
     expect(response.status).toBe("disabled");
+  });
+
+  it("updates password with a hash and returns a sanitized record", async () => {
+    const existingUser = createUser({ id: "usr_regular", role: "regular" });
+    const updatedUser = createUser({ id: "usr_regular", role: "regular" });
+    const prisma = createPrisma({
+      findUnique: jest.fn().mockResolvedValue(existingUser),
+      update: jest.fn().mockResolvedValue(updatedUser)
+    });
+    const service = new UsersService(prisma);
+
+    const response = await service.updateUser("usr_regular", {
+      password: "NuevaClave2026"
+    });
+    const updateCall = (prisma.appUser.update as jest.Mock).mock.calls[0][0];
+    const passwordHash = updateCall.data.passwordHash;
+
+    expect(passwordHash).toEqual(expect.stringMatching(/^scrypt\$/));
+    expect(passwordHash).not.toBe("NuevaClave2026");
+    expect(verifyPassword("NuevaClave2026", passwordHash)).toBe(true);
+    expect(response).not.toHaveProperty("passwordHash");
   });
 
   it("prevents demoting the last active admin", async () => {

@@ -336,6 +336,14 @@ const usersUrl = `${apiBase}/auth/users`;
                   type="email"
                   value="${escapeHtml(user.email)}"
                 />
+                <input
+                  autocomplete="new-password"
+                  class="mt-2 h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none focus:border-zinc-500"
+                  data-user-field="password"
+                  minlength="8"
+                  placeholder="Nueva contrasena"
+                  type="password"
+                />
                 ${isCurrentUser ? `<span class="mt-2 inline-flex rounded-md bg-zinc-950 px-2 py-1 text-xs font-medium text-white">Sesion actual</span>` : ""}
               </td>
               <td class="px-4 py-3">
@@ -530,12 +538,14 @@ const usersUrl = `${apiBase}/auth/users`;
           role: field("role"),
           status: field("status")
         };
+        const password = field("password");
+        const body = password ? { ...payload, password } : payload;
 
         button.setAttribute("disabled", "true");
 
         try {
           await requestJson<ManagedUser>(`${usersUrl}/${encodeURIComponent(userId)}`, {
-            body: JSON.stringify(payload),
+            body: JSON.stringify(body),
             method: "PATCH"
           });
           setStatus("Usuario actualizado.", "success");

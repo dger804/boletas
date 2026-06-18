@@ -362,6 +362,7 @@ crear usuarios
 editar nombre y correo
 cambiar rol
 cambiar estado
+cambiar contrasena
 borrar usuarios
 ```
 
@@ -414,6 +415,8 @@ Invoke-RestMethod `
   -Body $body `
   -Uri "https://api-boletas.corporacionceer.com/api/auth/users/ID_DEL_USUARIO"
 ```
+
+Cambiar contrasena usa el mismo endpoint `PATCH /api/auth/users/:id`. En la pantalla web, el campo `Nueva contrasena` es opcional: si queda vacio no se envia y la clave actual no cambia. Si se diligencia, la API guarda un hash nuevo y la respuesta sigue sin incluir datos de contrasena.
 
 Las respuestas nunca incluyen `password_hash`. La API impide degradar o deshabilitar al ultimo `admin` activo para evitar perder acceso administrativo.
 
@@ -469,6 +472,5 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Agregar cambio de contrasena desde la pantalla de usuarios.
-2. Mejorar manejo visible de expiracion de sesion.
-3. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Mejorar manejo visible de expiracion de sesion.
+2. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
