@@ -4,7 +4,8 @@ import { CreateUserDto } from "../src/auth/dto";
 import {
   CreateEventDto,
   CreateTicketBatchDto,
-  RegisterSaleDto
+  RegisterSaleDto,
+  UpdateEventDto
 } from "../src/events/dto";
 import { EventsController } from "../src/events/events.controller";
 
@@ -41,6 +42,22 @@ describe("DTO validation", () => {
       capitalizationAmount: 15000,
       price: 90000,
       quantity: 3
+    });
+  });
+
+  it("transforms numeric event update fields", async () => {
+    const value = await pipe.transform(
+      {
+        expectedAttendees: "250",
+        status: "active"
+      },
+      { metatype: UpdateEventDto, type: "body" }
+    );
+
+    expect(value).toBeInstanceOf(UpdateEventDto);
+    expect(value).toMatchObject({
+      expectedAttendees: 250,
+      status: "active"
     });
   });
 

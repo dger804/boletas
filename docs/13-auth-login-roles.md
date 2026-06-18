@@ -144,6 +144,7 @@ Los endpoints de eventos, boletas y pagos usan la sesion vigente para aplicar pe
 ```txt
 GET   /api/events                         regular, supervisor, admin
 POST  /api/events                         admin
+PATCH /api/events/:eventId                admin
 GET   /api/events/:eventId/summary        regular, supervisor, admin
 GET   /api/events/:eventId/dashboard      supervisor, admin
 GET   /api/events/:eventId/distributors   supervisor, admin
@@ -188,6 +189,25 @@ Los usuarios `admin` tambien ven el formulario de creacion, que usa:
 POST /api/events
 Authorization: Bearer <token_admin>
 ```
+
+Tambien pueden seleccionar un evento de la tabla y editar sus datos principales:
+
+```txt
+PATCH /api/events/:eventId
+Authorization: Bearer <token_admin>
+```
+
+Campos editables:
+
+```txt
+name
+date
+venue
+expectedAttendees
+status
+```
+
+La API rechaza cuerpos vacios y conserva sin cambios los campos que no se envien.
 
 Cada evento de la tabla abre el tablero con `eventId` en la URL:
 
@@ -449,7 +469,6 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Agregar edicion de eventos.
-2. Agregar cambio de contrasena desde la pantalla de usuarios.
-3. Mejorar manejo visible de expiracion de sesion.
-4. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Agregar cambio de contrasena desde la pantalla de usuarios.
+2. Mejorar manejo visible de expiracion de sesion.
+3. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.

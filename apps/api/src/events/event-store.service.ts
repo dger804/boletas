@@ -28,6 +28,7 @@ import type {
   CreateEventDto,
   CreateTicketBatchDto,
   RegisterSaleDto,
+  UpdateEventDto,
   VerifyPaymentDto
 } from "./dto";
 
@@ -152,6 +153,51 @@ export class EventStoreService {
     };
 
     this.events.push(event);
+    return event;
+  }
+
+  async updateEvent(eventId: string, dto: UpdateEventDto) {
+    if (!this.hasEventUpdate(dto)) {
+      throw new BadRequestException("event update requires at least one field");
+    }
+
+    if (this.prisma?.isConfigured()) {
+      await this.findPrismaEvent(eventId);
+
+      const event = await this.prisma.event.update({
+        data: {
+          ...(dto.date !== undefined ? { date: new Date(dto.date) } : {}),
+          ...(dto.expectedAttendees !== undefined
+            ? { expectedAttendees: dto.expectedAttendees }
+            : {}),
+          ...(dto.name !== undefined ? { name: dto.name } : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+          ...(dto.venue !== undefined ? { venue: dto.venue } : {})
+        },
+        where: { id: eventId }
+      });
+
+      return this.toEventRecord(event);
+    }
+
+    const event = this.findEvent(eventId);
+
+    if (dto.date !== undefined) {
+      event.date = dto.date;
+    }
+    if (dto.expectedAttendees !== undefined) {
+      event.expectedAttendees = dto.expectedAttendees;
+    }
+    if (dto.name !== undefined) {
+      event.name = dto.name;
+    }
+    if (dto.status !== undefined) {
+      event.status = dto.status;
+    }
+    if (dto.venue !== undefined) {
+      event.venue = dto.venue;
+    }
+
     return event;
   }
 
@@ -701,6 +747,16 @@ export class EventStoreService {
       throw new NotFoundException("event not found");
     }
     return event;
+  }
+
+  private hasEventUpdate(dto: UpdateEventDto) {
+    return (
+      dto.date !== undefined ||
+      dto.expectedAttendees !== undefined ||
+      dto.name !== undefined ||
+      dto.status !== undefined ||
+      dto.venue !== undefined
+    );
   }
 
   private toPublicTicketDetail(status: TicketStatus) {

@@ -41,6 +41,7 @@ El contrato HTTP no cambia. Los controladores siguen exponiendo:
 ```txt
 GET    /api/events
 POST   /api/events
+PATCH  /api/events/:eventId
 GET    /api/events/:eventId/summary
 GET    /api/events/:eventId/dashboard
 GET    /api/events/:eventId/distributors

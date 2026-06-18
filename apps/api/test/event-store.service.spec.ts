@@ -119,6 +119,41 @@ describe("EventStoreService", () => {
     expect(serialized).not.toContain("evidencia-demo");
   });
 
+  it("updates event metadata", async () => {
+    const store = new EventStoreService();
+
+    const event = await store.createEvent({
+      date: "2026-08-01T20:00:00.000Z",
+      expectedAttendees: 50,
+      name: "Evento Original",
+      status: "draft",
+      venue: "Auditorio Original"
+    });
+
+    const updated = await store.updateEvent(event.id, {
+      expectedAttendees: 80,
+      name: "Evento Actualizado",
+      status: "active",
+      venue: "Auditorio Principal"
+    });
+
+    expect(updated).toMatchObject({
+      date: "2026-08-01T20:00:00.000Z",
+      expectedAttendees: 80,
+      name: "Evento Actualizado",
+      status: "active",
+      venue: "Auditorio Principal"
+    });
+  });
+
+  it("rejects empty event updates", async () => {
+    const store = new EventStoreService();
+
+    await expect(store.updateEvent("evt_demo", {})).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
   it("includes the assigned distributor contact when listing tickets", async () => {
     const store = new EventStoreService();
 

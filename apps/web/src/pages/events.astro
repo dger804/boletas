@@ -2,6 +2,7 @@
 import {
   CalendarDays,
   LogOut,
+  Pencil,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -60,6 +61,9 @@ const eventsUrl = `${apiBase}/events`;
     };
 
     let authToken = "";
+    let currentEvents: EventRecord[] = [];
+    let currentUser: StoredUser | null = null;
+    let selectedEventId = "";
     const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 
     const resolveApiUrl = (url: string | null | undefined) => {
@@ -168,6 +172,8 @@ const eventsUrl = `${apiBase}/events`;
         .replace(/'/g, "&#039;");
 
     const renderUser = (user: StoredUser) => {
+      currentUser = user;
+
       document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
         element.textContent = user.name;
       });
@@ -282,7 +288,7 @@ const eventsUrl = `${apiBase}/events`;
       }).format(date);
     };
 
-    const toDateTimeLocal = (value: string) => {
+    const toApiDateTime = (value: string) => {
       if (!value) {
         return null;
       }
@@ -294,6 +300,80 @@ const eventsUrl = `${apiBase}/events`;
       }
 
       return date.toISOString();
+    };
+
+    const toInputDateTime = (value: string) => {
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return "";
+      }
+
+      return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+    };
+
+    const getSelectedEvent = () =>
+      currentEvents.find((event) => event.id === selectedEventId) ?? null;
+
+    const resetEditForm = () => {
+      selectedEventId = "";
+      const form = document.querySelector<HTMLFormElement>("[data-update-event-form]");
+      const title = document.querySelector<HTMLElement>("[data-update-event-title]");
+      const submitButton = form?.querySelector<HTMLButtonElement>("button[type='submit']");
+
+      form?.reset();
+      if (title) {
+        title.textContent = "Selecciona un evento";
+      }
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+    };
+
+    const populateEditForm = (event: EventRecord) => {
+      selectedEventId = event.id;
+      const form = document.querySelector<HTMLFormElement>("[data-update-event-form]");
+      const title = document.querySelector<HTMLElement>("[data-update-event-title]");
+      const submitButton = form?.querySelector<HTMLButtonElement>("button[type='submit']");
+
+      if (title) {
+        title.textContent = event.name;
+      }
+
+      if (!form) {
+        return;
+      }
+
+      const name = form.querySelector<HTMLInputElement>('[name="name"]');
+      const date = form.querySelector<HTMLInputElement>('[name="date"]');
+      const venue = form.querySelector<HTMLInputElement>('[name="venue"]');
+      const expectedAttendees = form.querySelector<HTMLInputElement>(
+        '[name="expectedAttendees"]'
+      );
+      const status = form.querySelector<HTMLSelectElement>('[name="status"]');
+
+      if (name) {
+        name.value = event.name;
+      }
+      if (date) {
+        date.value = toInputDateTime(event.date);
+      }
+      if (venue) {
+        venue.value = event.venue;
+      }
+      if (expectedAttendees) {
+        expectedAttendees.value = String(event.expectedAttendees);
+      }
+      if (status) {
+        status.value = event.status;
+      }
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+
+      setStatus(`Edicion preparada para ${event.name}.`);
     };
 
     const renderEvents = (events: EventRecord[]) => {
@@ -325,6 +405,18 @@ const eventsUrl = `${apiBase}/events`;
           const ticketsUrl = `/tickets?eventId=${encodeURIComponent(event.id)}`;
           const status = statusLabels[event.status];
           const statusClass = statusClasses[event.status];
+          const adminAction =
+            currentUser?.role === "admin"
+              ? `
+                <button
+                  class="inline-flex h-9 items-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  data-edit-event="${escapeHtml(event.id)}"
+                  type="button"
+                >
+                  Editar
+                </button>
+              `
+              : "";
 
           return `
             <tr class="align-top hover:bg-zinc-50">
@@ -348,6 +440,7 @@ const eventsUrl = `${apiBase}/events`;
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
                 <div class="flex justify-end gap-2">
+                  ${adminAction}
                   <a
                     class="inline-flex h-9 items-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                     href="${ticketsUrl}"
@@ -382,7 +475,11 @@ const eventsUrl = `${apiBase}/events`;
         const payload = await requestJson<unknown[]>(eventsUrl);
         const events = Array.isArray(payload) ? payload.filter(isEventRecord) : [];
 
+        currentEvents = events;
         renderEvents(events);
+        if (!currentEvents.some((event) => event.id === selectedEventId)) {
+          resetEditForm();
+        }
         setStatus("Eventos actualizados.", "success");
       } catch (error) {
         setStatus(
@@ -407,7 +504,7 @@ const eventsUrl = `${apiBase}/events`;
         }
 
         const formData = new FormData(form);
-        const date = toDateTimeLocal(String(formData.get("date") ?? ""));
+        const date = toApiDateTime(String(formData.get("date") ?? ""));
 
         if (!date) {
           setStatus("La fecha del evento no es valida.", "error");
@@ -443,9 +540,92 @@ const eventsUrl = `${apiBase}/events`;
       });
     };
 
+    const bindUpdateForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-update-event-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { eventsUrl } = getConfig();
+        const selectedEvent = getSelectedEvent();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!eventsUrl || !selectedEvent) {
+          setStatus("Selecciona un evento antes de editar.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const date = toApiDateTime(String(formData.get("date") ?? ""));
+
+        if (!date) {
+          setStatus("La fecha del evento no es valida.", "error");
+          return;
+        }
+
+        const payload = {
+          date,
+          expectedAttendees: Number(formData.get("expectedAttendees") ?? 0),
+          name: String(formData.get("name") ?? "").trim(),
+          status: String(formData.get("status") ?? "draft"),
+          venue: String(formData.get("venue") ?? "").trim()
+        };
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          const updated = await requestJson<EventRecord>(
+            `${eventsUrl}/${encodeURIComponent(selectedEvent.id)}`,
+            {
+              body: JSON.stringify(payload),
+              method: "PATCH"
+            }
+          );
+          currentEvents = currentEvents.map((item) =>
+            item.id === updated.id ? updated : item
+          );
+          renderEvents(currentEvents);
+          populateEditForm(updated);
+          setStatus("Evento actualizado.", "success");
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible actualizar el evento.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+        }
+      });
+    };
+
     const bindEventActions = () => {
       document.querySelector("[data-refresh-events]")?.addEventListener("click", () => {
         void loadEvents();
+      });
+
+      document.querySelector("[data-events-body]")?.addEventListener("click", (event) => {
+        const target = event.target;
+
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const button = target.closest<HTMLButtonElement>("[data-edit-event]");
+
+        if (!button?.dataset.editEvent) {
+          return;
+        }
+
+        const selectedEvent = currentEvents.find(
+          (item) => item.id === button.dataset.editEvent
+        );
+
+        if (!selectedEvent) {
+          setStatus("No se encontro el evento seleccionado.", "error");
+          return;
+        }
+
+        populateEditForm(selectedEvent);
       });
     };
 
@@ -463,6 +643,7 @@ const eventsUrl = `${apiBase}/events`;
           renderUser(user);
           bindLogout();
           bindCreateForm();
+          bindUpdateForm();
           bindEventActions();
         });
 
@@ -656,6 +837,88 @@ const eventsUrl = `${apiBase}/events`;
                 Crear evento
               </button>
             </form>
+
+            <div class="mt-6 border-t border-zinc-100 pt-5">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-sky-600 text-white">
+                  <Pencil size={18} />
+                </span>
+                <div>
+                  <h2 class="text-sm font-semibold text-zinc-950">Editar evento</h2>
+                  <p class="mt-1 text-xs text-zinc-500" data-update-event-title>
+                    Selecciona un evento
+                  </p>
+                </div>
+              </div>
+
+              <form class="mt-5 grid gap-4" data-update-event-form>
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Nombre</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="120"
+                    name="name"
+                    required
+                    type="text"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Fecha</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    name="date"
+                    required
+                    type="datetime-local"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Lugar</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="160"
+                    name="venue"
+                    required
+                    type="text"
+                  />
+                </label>
+
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  <label class="grid gap-2">
+                    <span class="text-sm font-medium text-zinc-700">Aforo esperado</span>
+                    <input
+                      class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                      min="0"
+                      name="expectedAttendees"
+                      required
+                      type="number"
+                      value="0"
+                    />
+                  </label>
+
+                  <label class="grid gap-2">
+                    <span class="text-sm font-medium text-zinc-700">Estado</span>
+                    <select
+                      class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
+                      name="status"
+                    >
+                      <option value="draft">Borrador</option>
+                      <option value="active">Activo</option>
+                      <option value="closed">Cerrado</option>
+                    </select>
+                  </label>
+                </div>
+
+                <button
+                  class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled
+                  type="submit"
+                >
+                  Guardar cambios
+                </button>
+              </form>
+            </div>
           </section>
 
           <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">

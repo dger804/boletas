@@ -48,6 +48,35 @@ export class CreateEventDto {
   status?: EventStatus;
 }
 
+export class UpdateEventDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  venue?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  expectedAttendees?: number;
+
+  @IsOptional()
+  @IsIn(EVENT_STATUS_VALUES)
+  status?: EventStatus;
+}
+
 export class CreateDistributorDto {
   @IsString()
   @IsNotEmpty()
