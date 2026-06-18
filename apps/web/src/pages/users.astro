@@ -78,7 +78,7 @@ const usersUrl = `${apiBase}/auth/users`;
 
     const redirectToLogin = () => {
       clearSession();
-      window.location.replace("/login");
+      window.location.replace("/login?reason=session-expired");
     };
 
     const getConfig = () => {

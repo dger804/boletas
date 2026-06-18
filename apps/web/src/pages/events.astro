@@ -86,7 +86,7 @@ const eventsUrl = `${apiBase}/events`;
 
     const redirectToLogin = () => {
       clearSession();
-      window.location.replace("/login");
+      window.location.replace("/login?reason=session-expired");
     };
 
     const getConfig = () => {

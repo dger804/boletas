@@ -73,6 +73,7 @@ const loginUrl = `${apiBase}/auth/login`;
                 />
               </label>
 
+              <p class="hidden rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700" data-login-notice></p>
               <p class="hidden rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" data-login-error></p>
 
               <button
@@ -103,6 +104,7 @@ const loginUrl = `${apiBase}/auth/login`;
 
     const form = document.querySelector<HTMLFormElement>("[data-login-form]");
     const errorBox = document.querySelector<HTMLElement>("[data-login-error]");
+    const noticeBox = document.querySelector<HTMLElement>("[data-login-notice]");
     const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 
     const resolveApiUrl = (url: string) => {
@@ -122,9 +124,26 @@ const loginUrl = `${apiBase}/auth/login`;
       errorBox.classList.remove("hidden");
     };
 
+    const showNotice = (message: string) => {
+      if (!noticeBox) {
+        return;
+      }
+
+      noticeBox.textContent = message;
+      noticeBox.classList.remove("hidden");
+    };
+
+    const reason = new URLSearchParams(window.location.search).get("reason");
+
+    if (reason === "session-expired") {
+      showNotice("Tu sesion expiro o ya no es valida. Inicia sesion nuevamente.");
+      window.history.replaceState(null, "", "/login");
+    }
+
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
       errorBox?.classList.add("hidden");
+      noticeBox?.classList.add("hidden");
 
       const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
       const loginUrl = form.getAttribute("data-login-url");

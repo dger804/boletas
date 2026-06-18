@@ -443,7 +443,13 @@ GET /api/auth/me
 Authorization: Bearer <token>
 ```
 
-Si la API responde correctamente, el dashboard actualiza `boletas.auth.user` con el usuario real devuelto por el backend. Si la API rechaza el token, no responde con un usuario valido o la sesion local esta vencida, el frontend elimina esos valores y redirige a `/login`.
+Si la API responde correctamente, el dashboard actualiza `boletas.auth.user` con el usuario real devuelto por el backend. Si la API rechaza el token, no responde con un usuario valido o la sesion local esta vencida, el frontend elimina esos valores y redirige a:
+
+```txt
+/login?reason=session-expired
+```
+
+La pantalla de login muestra un aviso visible indicando que la sesion expiro o ya no es valida, y luego limpia el parametro de la URL con `history.replaceState`.
 
 El boton `Salir` tambien elimina esos valores y redirige a `/login`.
 
@@ -472,5 +478,4 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Mejorar manejo visible de expiracion de sesion.
-2. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.

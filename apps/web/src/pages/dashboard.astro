@@ -260,7 +260,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
 
     const redirectToLogin = () => {
       clearSession();
-      window.location.replace("/login");
+      window.location.replace("/login?reason=session-expired");
     };
 
     const getAuthMeUrl = () => {
@@ -664,7 +664,7 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         sessionStorage.removeItem("boletas.auth.token");
         sessionStorage.removeItem("boletas.auth.expiresAt");
         sessionStorage.removeItem("boletas.auth.user");
-        window.location.replace("/login");
+        window.location.replace("/login?reason=session-expired");
       };
 
       const money = new Intl.NumberFormat("es-CO", {
