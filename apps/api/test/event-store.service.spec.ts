@@ -120,6 +120,73 @@ describe("EventStoreService", () => {
     expect(serialized).not.toContain("evidencia-demo");
   });
 
+  it("builds an operational closeout for supervisors", async () => {
+    const store = new EventStoreService();
+    const event = await store.createEvent({
+      date: "2026-08-01T20:00:00.000Z",
+      expectedAttendees: 30,
+      name: "Cierre Test",
+      status: "active",
+      venue: "Auditorio Test"
+    });
+    const distributor = await store.addDistributor(event.id, {
+      name: "Responsable Corte",
+      phone: "+57 300 000 0001"
+    });
+    const tickets = await store.createTicketBatch(event.id, {
+      capitalizationAmount: 10000,
+      price: 50000,
+      quantity: 2
+    });
+    const firstTicket = tickets[0];
+    const secondTicket = tickets[1];
+
+    if (!firstTicket || !secondTicket) {
+      throw new Error("tickets were not created");
+    }
+
+    await store.assignTicket(secondTicket.id, {
+      distributorId: distributor.id,
+      recipientName: "Titular Pendiente"
+    });
+    const sale = await store.registerSale(firstTicket.id, {
+      amount: 50000,
+      buyerName: "Comprador Corte",
+      method: "cash"
+    });
+    await store.verifyPayment(sale.payment.id, {
+      reviewedBy: "Supervisor Corte",
+      status: "approved"
+    });
+
+    const closeout = await store.getEventCloseout(event.id);
+
+    expect(closeout.event.id).toBe(event.id);
+    expect(closeout.payments).toMatchObject({
+      approved: 1,
+      approvedAmount: 50000,
+      cashApprovedAmount: 50000,
+      pending: 0
+    });
+    expect(closeout.entry).toMatchObject({
+      allowedTickets: 1,
+      remainingAllowedTickets: 1,
+      usedTickets: 0
+    });
+    expect(closeout.distributors[0]).toMatchObject({
+      name: "Responsable Corte",
+      assignedTickets: 1,
+      pendingTickets: 1
+    });
+    expect(closeout.pendingTickets).toEqual([
+      expect.objectContaining({
+        code: secondTicket.code,
+        recipientName: "Titular Pendiente",
+        status: "assigned"
+      })
+    ]);
+  });
+
   it("updates event metadata", async () => {
     const store = new EventStoreService();
 

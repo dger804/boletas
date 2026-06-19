@@ -453,6 +453,9 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
           <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-manager-only href="/payments">
             Pagos
           </a>
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-manager-only href="/closeout">
+            Corte
+          </a>
           <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-manager-only href="/audit">
             Auditoria
           </a>
@@ -591,9 +594,13 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
                   <p class="mt-1 text-xs text-zinc-500" data-dashboard-field="pending-validation">{pendingValidation} ventas pendientes de validar</p>
                 </div>
               </div>
-              <button class="mt-4 h-10 w-full rounded-md border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-                Cerrar corte
-              </button>
+              <a
+                class="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                data-closeout-link
+                href="/closeout"
+              >
+                Ver corte
+              </a>
             </section>
           </div>
         </section>
@@ -678,6 +685,13 @@ const tickets = dashboard.ticketSamples.map((ticket) => ({
         return url;
       };
       const dashboardUrl = configuredEventUrl ? resolveApiUrl(configuredEventUrl) : null;
+      const closeoutHref = selectedEventId
+        ? `/closeout?eventId=${encodeURIComponent(selectedEventId)}`
+        : "/closeout";
+
+      document.querySelectorAll<HTMLAnchorElement>("[data-closeout-link]").forEach((link) => {
+        link.href = closeoutHref;
+      });
 
       if (!dashboardUrl) {
         return;

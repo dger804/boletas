@@ -1,0 +1,895 @@
+---
+import {
+  CalendarDays,
+  ClipboardCheck,
+  LogOut,
+  Printer,
+  RefreshCw,
+  ShieldCheck,
+  Ticket
+} from "lucide-astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
+const authMeUrl = `${apiBase}/auth/me`;
+const eventsUrl = `${apiBase}/events`;
+---
+
+<BaseLayout title="Corte | Boletas">
+  <span hidden data-auth-me-url={authMeUrl} data-events-url={eventsUrl}></span>
+  <script>
+    type EventStatus = "draft" | "active" | "closed";
+    type EvidenceStatus = "approved" | "pending" | "rejected";
+    type PaymentMethod = "cash" | "transfer";
+    type TicketStatus =
+      | "assigned"
+      | "available"
+      | "paid"
+      | "reserved"
+      | "sold"
+      | "used"
+      | "void";
+    type UserRole = "regular" | "supervisor" | "admin";
+
+    interface StoredUser {
+      id: string;
+      email: string;
+      name: string;
+      role: UserRole;
+    }
+
+    interface AuthMeResponse {
+      user?: StoredUser;
+    }
+
+    interface EventRecord {
+      id: string;
+      name: string;
+      date: string;
+      venue: string;
+      status: EventStatus;
+      expectedAttendees: number;
+      createdAt: string;
+    }
+
+    interface CloseoutDistributor {
+      id: string;
+      eventId: string;
+      name: string;
+      phone: string;
+      email?: string;
+      notes?: string;
+      createdAt: string;
+      assignedTickets: number;
+      soldTickets: number;
+      paidTickets: number;
+      usedTickets: number;
+      pendingTickets: number;
+      grossSales: number;
+      capitalization: number;
+    }
+
+    interface CloseoutPendingTicket {
+      id: string;
+      code: string;
+      status: TicketStatus;
+      distributorName?: string;
+      recipientName?: string;
+      buyerName?: string;
+      price: number;
+      capitalizationAmount: number;
+    }
+
+    interface CloseoutPendingPayment {
+      id: string;
+      ticketId: string;
+      ticketCode?: string;
+      method: PaymentMethod;
+      amount: number;
+      capitalizationAmount: number;
+      status: EvidenceStatus;
+      receivedAt: string;
+    }
+
+    interface EventCloseout {
+      event: EventRecord;
+      generatedAt: string;
+      totals: {
+        tickets: number;
+        available: number;
+        assigned: number;
+        sold: number;
+        paid: number;
+        used: number;
+        void: number;
+        grossSales: number;
+        capitalization: number;
+        pendingToCollect: number;
+      };
+      payments: {
+        pending: number;
+        approved: number;
+        rejected: number;
+        pendingAmount: number;
+        approvedAmount: number;
+        cashApprovedAmount: number;
+        transferApprovedAmount: number;
+      };
+      entry: {
+        allowedTickets: number;
+        usedTickets: number;
+        remainingAllowedTickets: number;
+        blockedTickets: number;
+      };
+      distributors: CloseoutDistributor[];
+      pendingTickets: CloseoutPendingTicket[];
+      pendingPayments: CloseoutPendingPayment[];
+    }
+
+    const allowedRoles = new Set(["regular", "supervisor", "admin"]);
+    const allowedEventStatuses = new Set(["draft", "active", "closed"]);
+    const managerRoles = new Set(["supervisor", "admin"]);
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+    const roleLabels: Record<UserRole, string> = {
+      admin: "Admin",
+      regular: "Regular",
+      supervisor: "Supervisor"
+    };
+    const ticketStatusLabels: Record<TicketStatus, string> = {
+      assigned: "Asignada",
+      available: "Disponible",
+      paid: "Pagada",
+      reserved: "Reservada",
+      sold: "Vendida",
+      used: "Usada",
+      void: "Bloqueada"
+    };
+    const paymentMethodLabels: Record<PaymentMethod, string> = {
+      cash: "Efectivo",
+      transfer: "Transferencia"
+    };
+
+    let authToken = "";
+    let currentEvents: EventRecord[] = [];
+    let selectedEventId = new URLSearchParams(window.location.search)
+      .get("eventId")
+      ?.trim() ?? "";
+
+    const money = new Intl.NumberFormat("es-CO", {
+      currency: "COP",
+      maximumFractionDigits: 0,
+      style: "currency"
+    });
+
+    const resolveApiUrl = (url: string | null | undefined) => {
+      if (!url) {
+        return null;
+      }
+
+      if (url.startsWith("/api") && localHosts.has(window.location.hostname)) {
+        return `http://localhost:3000${url}`;
+      }
+
+      return url;
+    };
+
+    const getConfig = () => {
+      const config = document.querySelector<HTMLElement>("[data-auth-me-url]");
+
+      return {
+        authMeUrl: resolveApiUrl(config?.dataset.authMeUrl),
+        eventsUrl: resolveApiUrl(config?.dataset.eventsUrl)
+      };
+    };
+
+    const clearSession = () => {
+      sessionStorage.removeItem("boletas.auth.token");
+      sessionStorage.removeItem("boletas.auth.expiresAt");
+      sessionStorage.removeItem("boletas.auth.user");
+    };
+
+    const redirectToLogin = () => {
+      clearSession();
+      window.location.replace("/login?reason=session-expired");
+    };
+
+    const isStoredUser = (value: unknown): value is StoredUser => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const user = value as Partial<StoredUser>;
+
+      return (
+        typeof user.id === "string" &&
+        typeof user.email === "string" &&
+        typeof user.name === "string" &&
+        typeof user.role === "string" &&
+        allowedRoles.has(user.role)
+      );
+    };
+
+    const isEventRecord = (value: unknown): value is EventRecord => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const event = value as Partial<EventRecord>;
+
+      return (
+        typeof event.id === "string" &&
+        typeof event.name === "string" &&
+        typeof event.date === "string" &&
+        typeof event.venue === "string" &&
+        typeof event.status === "string" &&
+        allowedEventStatuses.has(event.status) &&
+        typeof event.expectedAttendees === "number" &&
+        typeof event.createdAt === "string"
+      );
+    };
+
+    const isCloseout = (value: unknown): value is EventCloseout => {
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+
+      const closeout = value as Partial<EventCloseout>;
+      const objectIsValid = (field: unknown) =>
+        !!field && typeof field === "object" && !Array.isArray(field);
+
+      return (
+        isEventRecord(closeout.event) &&
+        typeof closeout.generatedAt === "string" &&
+        objectIsValid(closeout.totals) &&
+        objectIsValid(closeout.payments) &&
+        objectIsValid(closeout.entry) &&
+        Array.isArray(closeout.distributors) &&
+        Array.isArray(closeout.pendingTickets) &&
+        Array.isArray(closeout.pendingPayments)
+      );
+    };
+
+    const readStoredUser = (): StoredUser | null => {
+      const storedUser = sessionStorage.getItem("boletas.auth.user");
+
+      if (!storedUser) {
+        return null;
+      }
+
+      try {
+        const parsed = JSON.parse(storedUser) as unknown;
+
+        return isStoredUser(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const isExpired = (expiresAt: string | null) => {
+      const expiresAtMs = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+
+      return !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now();
+    };
+
+    const whenReady = (callback: () => void) => {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback, { once: true });
+      } else {
+        callback();
+      }
+    };
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    const formatDateTime = (value: string) => {
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+
+      return new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(date);
+    };
+
+    const renderUser = (user: StoredUser) => {
+      document.querySelectorAll("[data-auth-user-name]").forEach((element) => {
+        element.textContent = user.name;
+      });
+
+      document.querySelectorAll("[data-auth-user-email]").forEach((element) => {
+        element.textContent = user.email;
+      });
+
+      document.querySelectorAll("[data-auth-user-role]").forEach((element) => {
+        element.textContent = roleLabels[user.role];
+      });
+    };
+
+    const renderRoleNavigation = (user: StoredUser) => {
+      const setRoleElementVisibility = (element: HTMLElement, visible: boolean) => {
+        element.classList.toggle("hidden", !visible);
+
+        const displayClass = element.dataset.roleDisplay;
+
+        if (displayClass) {
+          element.classList.toggle(displayClass, visible);
+        }
+      };
+
+      document.querySelectorAll<HTMLElement>("[data-admin-only]").forEach((element) => {
+        setRoleElementVisibility(element, user.role === "admin");
+      });
+
+      document.querySelectorAll<HTMLElement>("[data-manager-only]").forEach((element) => {
+        setRoleElementVisibility(element, managerRoles.has(user.role));
+      });
+    };
+
+    const bindLogout = () => {
+      document.querySelectorAll("[data-logout-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+          clearSession();
+          window.location.replace("/login");
+        });
+      });
+    };
+
+    const setStatus = (message: string, tone: "neutral" | "success" | "error" = "neutral") => {
+      const element = document.querySelector<HTMLElement>("[data-closeout-status]");
+
+      if (!element) {
+        return;
+      }
+
+      const toneClasses = {
+        error: "border-rose-200 bg-rose-50 text-rose-700",
+        neutral: "border-zinc-200 bg-white text-zinc-600",
+        success: "border-emerald-200 bg-emerald-50 text-emerald-700"
+      };
+
+      element.className = `rounded-md border px-3 py-2 text-sm ${toneClasses[tone]}`;
+      element.textContent = message;
+      element.classList.remove("hidden");
+    };
+
+    const requestJson = async <T,>(url: string) => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        redirectToLogin();
+        throw new Error(`Request rejected with ${response.status}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`);
+      }
+
+      return (await response.json()) as T;
+    };
+
+    const validateSession = async (url: string, token: string) => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Auth session rejected with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as AuthMeResponse;
+
+      if (!isStoredUser(payload.user)) {
+        throw new Error("Auth session response did not include a valid user.");
+      }
+
+      return payload.user;
+    };
+
+    const setText = (field: string, value: unknown) => {
+      document.querySelectorAll(`[data-closeout-field="${field}"]`).forEach((element) => {
+        element.textContent = String(value);
+      });
+    };
+
+    const renderEvents = () => {
+      const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
+
+      if (!selector) {
+        return;
+      }
+
+      selector.innerHTML = currentEvents
+        .map(
+          (event) =>
+            `<option value="${escapeHtml(event.id)}">${escapeHtml(event.name)}</option>`
+        )
+        .join("");
+      selector.value = selectedEventId;
+    };
+
+    const renderDistributors = (rows: CloseoutDistributor[]) => {
+      const body = document.querySelector<HTMLElement>("[data-closeout-distributors]");
+
+      if (!body) {
+        return;
+      }
+
+      if (rows.length === 0) {
+        body.innerHTML = `<tr><td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="8">Sin responsables para mostrar</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = rows
+        .map(
+          (row) => `
+            <tr class="hover:bg-zinc-50">
+              <td class="px-4 py-3">
+                <p class="text-sm font-semibold text-zinc-950">${escapeHtml(row.name)}</p>
+                <p class="mt-1 text-xs text-zinc-500">${escapeHtml(row.phone)}</p>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">${escapeHtml(row.assignedTickets)}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">${escapeHtml(row.soldTickets)}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">${escapeHtml(row.paidTickets)}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">${escapeHtml(row.usedTickets)}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-amber-700">${escapeHtml(row.pendingTickets)}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.grossSales))}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.capitalization))}</td>
+            </tr>
+          `
+        )
+        .join("");
+    };
+
+    const renderPendingTickets = (rows: CloseoutPendingTicket[]) => {
+      const body = document.querySelector<HTMLElement>("[data-closeout-pending-tickets]");
+
+      if (!body) {
+        return;
+      }
+
+      if (rows.length === 0) {
+        body.innerHTML = `<tr><td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="6">Sin boletas pendientes</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = rows
+        .map(
+          (row) => `
+            <tr class="hover:bg-zinc-50">
+              <td class="whitespace-nowrap px-4 py-3 text-sm font-semibold text-zinc-950">${escapeHtml(row.code)}</td>
+              <td class="whitespace-nowrap px-4 py-3">
+                <span class="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">${escapeHtml(ticketStatusLabels[row.status])}</span>
+              </td>
+              <td class="px-4 py-3 text-sm text-zinc-700">${escapeHtml(row.distributorName ?? "Sin responsable")}</td>
+              <td class="px-4 py-3 text-sm text-zinc-700">${escapeHtml(row.buyerName ?? row.recipientName ?? "Sin titular")}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.price))}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.capitalizationAmount))}</td>
+            </tr>
+          `
+        )
+        .join("");
+    };
+
+    const renderPendingPayments = (rows: CloseoutPendingPayment[]) => {
+      const body = document.querySelector<HTMLElement>("[data-closeout-pending-payments]");
+
+      if (!body) {
+        return;
+      }
+
+      if (rows.length === 0) {
+        body.innerHTML = `<tr><td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="5">Sin pagos pendientes de validar</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = rows
+        .map(
+          (row) => `
+            <tr class="hover:bg-zinc-50">
+              <td class="whitespace-nowrap px-4 py-3 text-sm font-semibold text-zinc-950">${escapeHtml(row.ticketCode ?? row.ticketId)}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">${escapeHtml(paymentMethodLabels[row.method])}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-sm text-zinc-700">${escapeHtml(formatDateTime(row.receivedAt))}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.amount))}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-zinc-950">${escapeHtml(money.format(row.capitalizationAmount))}</td>
+            </tr>
+          `
+        )
+        .join("");
+    };
+
+    const renderCloseout = (closeout: EventCloseout) => {
+      setText("event-name", closeout.event.name);
+      setText("event-meta", `${formatDateTime(closeout.event.date)} - ${closeout.event.venue}`);
+      setText("generated-at", formatDateTime(closeout.generatedAt));
+      setText("gross-sales", money.format(closeout.totals.grossSales));
+      setText("capitalization", money.format(closeout.totals.capitalization));
+      setText("pending-amount", money.format(closeout.payments.pendingAmount));
+      setText("pending-payments", closeout.payments.pending);
+      setText("approved-payments", closeout.payments.approved);
+      setText("rejected-payments", closeout.payments.rejected);
+      setText("cash-approved", money.format(closeout.payments.cashApprovedAmount));
+      setText("transfer-approved", money.format(closeout.payments.transferApprovedAmount));
+      setText("entry-used", `${closeout.entry.usedTickets} / ${closeout.entry.allowedTickets}`);
+      setText("entry-remaining", closeout.entry.remainingAllowedTickets);
+      setText("entry-blocked", closeout.entry.blockedTickets);
+      setText("tickets-total", closeout.totals.tickets);
+      setText("tickets-available", closeout.totals.available);
+      setText("tickets-sold", closeout.totals.sold);
+      renderDistributors(closeout.distributors);
+      renderPendingTickets(closeout.pendingTickets);
+      renderPendingPayments(closeout.pendingPayments);
+    };
+
+    const loadEvents = async () => {
+      const { eventsUrl } = getConfig();
+
+      if (!eventsUrl) {
+        setStatus("No se encontro la URL de eventos.", "error");
+        return;
+      }
+
+      const payload = await requestJson<unknown>(eventsUrl);
+      currentEvents = Array.isArray(payload) ? payload.filter(isEventRecord) : [];
+
+      if (!selectedEventId && currentEvents[0]) {
+        selectedEventId = currentEvents[0].id;
+      }
+
+      renderEvents();
+    };
+
+    const loadCloseout = async () => {
+      const { eventsUrl } = getConfig();
+
+      if (!eventsUrl || !selectedEventId) {
+        setStatus("Selecciona un evento para generar el corte.", "error");
+        return;
+      }
+
+      try {
+        setStatus("Generando corte operativo...", "neutral");
+        const payload = await requestJson<unknown>(
+          `${eventsUrl}/${encodeURIComponent(selectedEventId)}/closeout`
+        );
+
+        if (!isCloseout(payload)) {
+          throw new Error("Invalid closeout response");
+        }
+
+        renderCloseout(payload);
+        setStatus("Corte actualizado.", "success");
+      } catch {
+        setStatus("No se pudo generar el corte.", "error");
+      }
+    };
+
+    const bindControls = () => {
+      document.querySelector("[data-refresh-closeout]")?.addEventListener("click", () => {
+        void loadCloseout();
+      });
+
+      document.querySelector("[data-print-closeout]")?.addEventListener("click", () => {
+        window.print();
+      });
+
+      document.querySelector("[data-event-selector]")?.addEventListener("change", (event) => {
+        selectedEventId = (event.currentTarget as HTMLSelectElement).value;
+        void loadCloseout();
+      });
+    };
+
+    try {
+      const { authMeUrl } = getConfig();
+      const token = sessionStorage.getItem("boletas.auth.token");
+      const expiresAt = sessionStorage.getItem("boletas.auth.expiresAt");
+      const user = readStoredUser();
+
+      if (!authMeUrl || !token || isExpired(expiresAt) || !user) {
+        redirectToLogin();
+      } else {
+        authToken = token;
+
+        whenReady(() => {
+          renderUser(user);
+          renderRoleNavigation(user);
+          bindLogout();
+          bindControls();
+        });
+
+        validateSession(authMeUrl, token)
+          .then(async (apiUser) => {
+            if (!managerRoles.has(apiUser.role)) {
+              window.location.replace("/dashboard");
+              return;
+            }
+
+            sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
+            renderUser(apiUser);
+            renderRoleNavigation(apiUser);
+            await loadEvents();
+            await loadCloseout();
+          })
+          .catch(() => {
+            redirectToLogin();
+          });
+      }
+    } catch {
+      redirectToLogin();
+    }
+  </script>
+
+  <div class="grid min-h-screen lg:grid-cols-[240px_1fr]">
+    <aside class="border-b border-zinc-200 bg-white px-4 py-4 lg:border-b-0 lg:border-r">
+      <div class="flex h-full flex-col gap-6">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-950 text-white">
+            <Ticket size={20} />
+          </span>
+          <div>
+            <p class="text-sm font-semibold text-zinc-950">Boletas</p>
+            <p class="text-xs text-zinc-500">Corte</p>
+          </div>
+        </div>
+
+        <nav class="grid gap-1 text-sm">
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/dashboard">
+            Tablero
+          </a>
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-admin-only href="/users">
+            Usuarios
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/events">
+            Eventos
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/tickets">
+            Boletas
+          </a>
+          <a class="rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" href="/check-in">
+            Entrada
+          </a>
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-manager-only href="/payments">
+            Pagos
+          </a>
+          <a class="hidden rounded-md bg-zinc-950 px-3 py-2 font-medium text-white" data-manager-only href="/closeout">
+            Corte
+          </a>
+          <a class="hidden rounded-md px-3 py-2 text-zinc-600 hover:bg-zinc-100" data-manager-only href="/audit">
+            Auditoria
+          </a>
+        </nav>
+
+        <div class="mt-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <p class="text-xs font-medium text-zinc-500">Sesion</p>
+          <p class="mt-1 truncate text-sm font-semibold text-zinc-950" data-auth-user-name>
+            Usuario
+          </p>
+          <p class="mt-1 truncate text-xs text-zinc-500" data-auth-user-email>
+            usuario@dominio.com
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="min-w-0">
+      <header class="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6">
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-xs font-medium text-zinc-500">
+              <CalendarDays size={14} />
+              <span data-closeout-field="event-meta">Evento</span>
+            </div>
+            <h1 class="mt-2 text-2xl font-semibold text-zinc-950" data-closeout-field="event-name">
+              Corte operativo
+            </h1>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <select
+              class="h-10 min-w-64 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-zinc-500"
+              data-event-selector
+            >
+              <option value="">Cargando eventos</option>
+            </select>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-refresh-closeout
+              title="Actualizar"
+              type="button"
+            >
+              <RefreshCw size={17} />
+              Actualizar
+            </button>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-print-closeout
+              title="Imprimir"
+              type="button"
+            >
+              <Printer size={17} />
+              Imprimir
+            </button>
+            <div class="flex h-10 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3">
+              <ShieldCheck class="text-emerald-600" size={17} />
+              <div class="hidden leading-tight sm:block">
+                <p class="max-w-36 truncate text-xs font-semibold text-zinc-950" data-auth-user-name>
+                  Usuario
+                </p>
+                <p class="text-[11px] uppercase text-zinc-500" data-auth-user-role>
+                  Admin
+                </p>
+              </div>
+            </div>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-logout-button
+              title="Cerrar sesion"
+              type="button"
+            >
+              <LogOut size={17} />
+              Salir
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div class="space-y-6 p-4 sm:p-6">
+        <p class="hidden rounded-md border px-3 py-2 text-sm" data-closeout-status></p>
+
+        <section class="grid gap-4 md:grid-cols-4">
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Recaudo aprobado</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-closeout-field="gross-sales">$0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Capitalizacion</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-closeout-field="capitalization">$0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Pendiente por validar</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-closeout-field="pending-amount">$0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Entrada</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-closeout-field="entry-used">0 / 0</p>
+          </div>
+        </section>
+
+        <section class="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Pagos aprobados</p>
+            <p class="mt-2 text-xl font-semibold text-zinc-950" data-closeout-field="approved-payments">0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Pagos pendientes</p>
+            <p class="mt-2 text-xl font-semibold text-zinc-950" data-closeout-field="pending-payments">0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Efectivo</p>
+            <p class="mt-2 text-xl font-semibold text-zinc-950" data-closeout-field="cash-approved">$0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Transferencia</p>
+            <p class="mt-2 text-xl font-semibold text-zinc-950" data-closeout-field="transfer-approved">$0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Disponibles</p>
+            <p class="mt-2 text-xl font-semibold text-zinc-950" data-closeout-field="tickets-available">0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Generado</p>
+            <p class="mt-2 text-sm font-semibold text-zinc-950" data-closeout-field="generated-at">Sin generar</p>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
+          <div class="flex items-center gap-3 border-b border-zinc-200 p-4">
+            <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-950 text-white">
+              <ClipboardCheck size={18} />
+            </span>
+            <div>
+              <h2 class="text-sm font-semibold text-zinc-950">Responsables</h2>
+              <p class="mt-1 text-xs text-zinc-500">Asignacion, recaudo y entrada por responsable</p>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-zinc-100 text-left">
+              <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th class="px-4 py-3 font-medium">Responsable</th>
+                  <th class="px-4 py-3 font-medium">Asignadas</th>
+                  <th class="px-4 py-3 font-medium">Vendidas</th>
+                  <th class="px-4 py-3 font-medium">Pagadas</th>
+                  <th class="px-4 py-3 font-medium">Usadas</th>
+                  <th class="px-4 py-3 font-medium">Pendientes</th>
+                  <th class="px-4 py-3 text-right font-medium">Recaudo</th>
+                  <th class="px-4 py-3 text-right font-medium">Capitalizacion</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-100 bg-white" data-closeout-distributors>
+                <tr>
+                  <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="8">
+                    Cargando responsables
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="grid gap-6 xl:grid-cols-2">
+          <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <div class="border-b border-zinc-200 p-4">
+              <h2 class="text-sm font-semibold text-zinc-950">Boletas pendientes</h2>
+              <p class="mt-1 text-xs text-zinc-500">Asignadas, reservadas o vendidas sin pago validado</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-zinc-100 text-left">
+                <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Codigo</th>
+                    <th class="px-4 py-3 font-medium">Estado</th>
+                    <th class="px-4 py-3 font-medium">Responsable</th>
+                    <th class="px-4 py-3 font-medium">Titular</th>
+                    <th class="px-4 py-3 text-right font-medium">Valor</th>
+                    <th class="px-4 py-3 text-right font-medium">Capitalizacion</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100 bg-white" data-closeout-pending-tickets>
+                  <tr>
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="6">
+                      Cargando pendientes
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="rounded-lg border border-zinc-200 bg-white shadow-sm">
+            <div class="border-b border-zinc-200 p-4">
+              <h2 class="text-sm font-semibold text-zinc-950">Pagos pendientes</h2>
+              <p class="mt-1 text-xs text-zinc-500">Evidencias reportadas sin aprobacion</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-zinc-100 text-left">
+                <thead class="bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">Boleta</th>
+                    <th class="px-4 py-3 font-medium">Metodo</th>
+                    <th class="px-4 py-3 font-medium">Recibido</th>
+                    <th class="px-4 py-3 text-right font-medium">Valor</th>
+                    <th class="px-4 py-3 text-right font-medium">Capitalizacion</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100 bg-white" data-closeout-pending-payments>
+                  <tr>
+                    <td class="px-4 py-8 text-center text-sm text-zinc-500" colspan="5">
+                      Cargando pagos pendientes
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+</BaseLayout>

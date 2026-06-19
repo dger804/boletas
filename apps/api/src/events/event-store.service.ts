@@ -9,6 +9,7 @@ import type {
   AuthenticatedUser,
   AuditLogRecord,
   Distributor,
+  EventCloseout,
   EventDashboard,
   EventRecord,
   PaymentEvidence,
@@ -316,6 +317,97 @@ export class EventStoreService {
         label: `Evidencia ${index + 1}`,
         method: payment.method,
         status: payment.status
+      }))
+    };
+  }
+
+  async getEventCloseout(eventId: string): Promise<EventCloseout> {
+    const [dashboard, tickets, payments] = await Promise.all([
+      this.getEventDashboard(eventId),
+      this.listTickets(eventId),
+      this.listPayments(eventId)
+    ]);
+    const approvedPayments = payments.filter((payment) => payment.status === "approved");
+    const pendingPayments = payments.filter((payment) => payment.status === "pending");
+    const rejectedPayments = payments.filter((payment) => payment.status === "rejected");
+    const payableStatuses: TicketStatus[] = ["paid", "used"];
+    const soldStatuses: TicketStatus[] = ["sold", "paid", "used"];
+    const pendingTicketStatuses: TicketStatus[] = ["assigned", "reserved", "sold"];
+    const sum = <T>(items: T[], selector: (item: T) => number) =>
+      items.reduce((total, item) => total + selector(item), 0);
+
+    return {
+      event: dashboard.event,
+      generatedAt: now(),
+      totals: dashboard.totals,
+      payments: {
+        pending: pendingPayments.length,
+        approved: approvedPayments.length,
+        rejected: rejectedPayments.length,
+        pendingAmount: sum(pendingPayments, (payment) => payment.amount),
+        approvedAmount: sum(approvedPayments, (payment) => payment.amount),
+        cashApprovedAmount: sum(
+          approvedPayments.filter((payment) => payment.method === "cash"),
+          (payment) => payment.amount
+        ),
+        transferApprovedAmount: sum(
+          approvedPayments.filter((payment) => payment.method === "transfer"),
+          (payment) => payment.amount
+        )
+      },
+      entry: {
+        allowedTickets: dashboard.totals.paid,
+        usedTickets: dashboard.totals.used,
+        remainingAllowedTickets: Math.max(
+          dashboard.totals.paid - dashboard.totals.used,
+          0
+        ),
+        blockedTickets: dashboard.totals.void
+      },
+      distributors: dashboard.distributors.map((distributor) => {
+        const assignedTickets = tickets.filter(
+          (ticket) => ticket.distributorId === distributor.id
+        );
+        const soldTickets = assignedTickets.filter((ticket) =>
+          soldStatuses.includes(ticket.status)
+        );
+        const paidTickets = assignedTickets.filter((ticket) =>
+          payableStatuses.includes(ticket.status)
+        );
+
+        return {
+          ...distributor,
+          soldTickets: soldTickets.length,
+          pendingTickets: assignedTickets.filter((ticket) =>
+            pendingTicketStatuses.includes(ticket.status)
+          ).length,
+          capitalization: sum(
+            paidTickets,
+            (ticket) => ticket.capitalizationAmount
+          )
+        };
+      }),
+      pendingTickets: tickets
+        .filter((ticket) => pendingTicketStatuses.includes(ticket.status))
+        .map((ticket) => ({
+          id: ticket.id,
+          code: ticket.code,
+          status: ticket.status,
+          distributorName: ticket.distributorName,
+          recipientName: ticket.recipientName,
+          buyerName: ticket.buyerName,
+          price: ticket.price,
+          capitalizationAmount: ticket.capitalizationAmount
+        })),
+      pendingPayments: pendingPayments.map((payment) => ({
+        id: payment.id,
+        ticketId: payment.ticketId,
+        ticketCode: payment.ticketCode,
+        method: payment.method,
+        amount: payment.amount,
+        capitalizationAmount: payment.capitalizationAmount,
+        status: payment.status,
+        receivedAt: payment.receivedAt
       }))
     };
   }

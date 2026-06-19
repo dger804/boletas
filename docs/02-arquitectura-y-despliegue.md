@@ -128,6 +128,8 @@ GET /api/public/events/:eventId/dashboard
 
 Estos endpoints devuelven metricas agregadas, muestras anonimizadas y pagos recientes sin compradores, telefonos, referencias de transferencia ni URLs de evidencia. Las acciones que crean o modifican datos siguen en endpoints protegidos. El dashboard completo `GET /api/events/:eventId/dashboard` queda reservado para `supervisor` y `admin`.
 
+El corte operativo `GET /api/events/:eventId/closeout` tambien queda reservado para `supervisor` y `admin`. Es una lectura calculada para revisar o imprimir el estado actual de recaudo, entrada, responsables y pendientes; no cambia el estado del evento.
+
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
 La siguiente decision tecnica es conectar las acciones operativas reales al token de sesion y completar las pantallas de eventos, boletas, pagos y entrada.

@@ -12,6 +12,7 @@ export type {
   AuditLogMetadata,
   AuditLogRecord,
   Distributor,
+  EventCloseout,
   EventDashboard,
   EventRecord,
   EventStatus,

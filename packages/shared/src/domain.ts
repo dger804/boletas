@@ -155,6 +155,58 @@ export interface EventDashboard {
   recentPayments: PaymentEvidence[];
 }
 
+export interface EventCloseout {
+  event: EventRecord;
+  generatedAt: string;
+  totals: EventDashboard["totals"];
+  payments: {
+    pending: number;
+    approved: number;
+    rejected: number;
+    pendingAmount: number;
+    approvedAmount: number;
+    cashApprovedAmount: number;
+    transferApprovedAmount: number;
+  };
+  entry: {
+    allowedTickets: number;
+    usedTickets: number;
+    remainingAllowedTickets: number;
+    blockedTickets: number;
+  };
+  distributors: Array<
+    Distributor & {
+      assignedTickets: number;
+      soldTickets: number;
+      paidTickets: number;
+      usedTickets: number;
+      pendingTickets: number;
+      grossSales: number;
+      capitalization: number;
+    }
+  >;
+  pendingTickets: Array<{
+    id: string;
+    code: string;
+    status: TicketStatus;
+    distributorName?: string;
+    recipientName?: string;
+    buyerName?: string;
+    price: number;
+    capitalizationAmount: number;
+  }>;
+  pendingPayments: Array<{
+    id: string;
+    ticketId: string;
+    ticketCode?: string;
+    method: PaymentMethod;
+    amount: number;
+    capitalizationAmount: number;
+    status: EvidenceStatus;
+    receivedAt: string;
+  }>;
+}
+
 export interface PublicEventDashboard {
   event: Pick<EventRecord, "name" | "date" | "venue" | "expectedAttendees">;
   totals: EventDashboard["totals"];

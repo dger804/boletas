@@ -50,6 +50,10 @@ describe("EventsController", () => {
       ROLES_KEY,
       EventsController.prototype.listDistributors
     );
+    const closeoutRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      EventsController.prototype.getCloseout
+    );
     const updateRoles = Reflect.getMetadata(
       ROLES_KEY,
       EventsController.prototype.updateEvent
@@ -58,6 +62,7 @@ describe("EventsController", () => {
     expect(fullDashboardRoles).toEqual(["supervisor", "admin"]);
     expect(summaryRoles).toEqual(["regular", "supervisor", "admin"]);
     expect(distributorRoles).toEqual(["supervisor", "admin"]);
+    expect(closeoutRoles).toEqual(["supervisor", "admin"]);
     expect(updateRoles).toEqual(["admin"]);
   });
 });

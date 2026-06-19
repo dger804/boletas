@@ -147,6 +147,7 @@ POST  /api/events                         admin
 PATCH /api/events/:eventId                admin
 GET   /api/events/:eventId/summary        regular, supervisor, admin
 GET   /api/events/:eventId/dashboard      supervisor, admin
+GET   /api/events/:eventId/closeout       supervisor, admin
 GET   /api/events/:eventId/distributors   supervisor, admin
 POST  /api/events/:eventId/distributors   supervisor, admin
 POST  /api/events/:eventId/tickets/batch  admin
@@ -168,6 +169,8 @@ GET /api/public/events/:eventId/dashboard
 
 El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/summary` con el token guardado en `sessionStorage`. Esa ruta devuelve el mismo contrato sanitizado que la ruta publica, por lo que no expone compradores, telefonos, referencias ni URLs de evidencia a usuarios `regular`.
 
+El corte operativo de Astro usa `GET /api/events/:eventId/closeout` y queda reservado para `supervisor` y `admin`. Es una lectura calculada del estado actual del evento; todavia no bloquea ventas ni cambia el estado del evento.
+
 En la interfaz del dashboard, el rol tambien reduce controles visibles:
 
 ```txt
@@ -178,6 +181,7 @@ regular
 
 supervisor
 - ve controles de supervision, capitalizacion, corte rapido, distribucion y evidencias
+- puede abrir `/closeout` para revisar e imprimir el corte operativo
 - no ve acciones exclusivas de creacion administrativa
 
 admin

@@ -52,6 +52,12 @@ export class EventsController {
     return this.store.getEventDashboard(eventId);
   }
 
+  @Roles("supervisor", "admin")
+  @Get(":eventId/closeout")
+  getCloseout(@Param("eventId") eventId: string) {
+    return this.store.getEventCloseout(eventId);
+  }
+
   @Roles("regular", "supervisor", "admin")
   @Get(":eventId/summary")
   getSummary(@Param("eventId") eventId: string) {
