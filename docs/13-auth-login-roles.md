@@ -155,6 +155,7 @@ POST  /api/events/:eventId/tickets/batch  admin
 GET   /api/tickets                        regular, supervisor, admin
 PATCH /api/tickets/:ticketId/assign       supervisor, admin
 PATCH /api/tickets/:ticketId/sale         regular, supervisor, admin
+PATCH /api/tickets/:ticketId/void         supervisor, admin
 PATCH /api/tickets/:ticketId/check-in     regular, supervisor, admin
 
 GET   /api/payments                       supervisor, admin
@@ -308,6 +309,23 @@ La venta exige comprador, metodo y valor recibido. Referencia, telefono, URL de 
 
 La API bloquea registrar una segunda venta sobre boletas `sold`, `paid`, `used` o `void` para evitar evidencias duplicadas sobre la misma boleta.
 
+Desde el inventario, `supervisor` y `admin` tambien pueden anular boletas:
+
+```txt
+PATCH /api/tickets/:ticketId/void
+Authorization: Bearer <token_supervisor_o_admin>
+```
+
+Body opcional:
+
+```json
+{
+  "reason": "Reporte duplicado"
+}
+```
+
+La anulacion cambia la boleta a `void`, conserva notas anteriores y agrega el motivo cuando se informa. La API permite anular boletas `available`, `assigned`, `reserved` o `sold`; una boleta `paid` solo puede anularla `admin`; una boleta `used` no puede anularse. La accion queda registrada como auditoria `ticket.void`.
+
 ## Registrar entrada
 
 Los usuarios `regular`, `supervisor` y `admin` pueden registrar ingreso desde:
@@ -384,6 +402,7 @@ ticket.batch_create
 ticket.assign
 ticket.sale
 ticket.check_in
+ticket.void
 payment.verify
 ```
 

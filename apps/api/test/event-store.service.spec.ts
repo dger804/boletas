@@ -483,6 +483,114 @@ describe("EventStoreService", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it("voids an assigned ticket and records audit metadata", async () => {
+    const actor: AuthenticatedUser = {
+      email: "supervisor@example.com",
+      id: "usr_supervisor",
+      name: "Supervisor Real",
+      role: "supervisor"
+    };
+    const ticket = {
+      buyerName: null,
+      buyerPhone: null,
+      capitalizationAmount: 15000,
+      checkedInBy: null,
+      code: "VIP-099",
+      createdAt: new Date("2026-05-29T00:00:00.000Z"),
+      distributorId: "dst_db",
+      eventId: "evt_db",
+      id: "tck_void",
+      notes: "Nota existente",
+      paidAt: null,
+      paymentMethod: null,
+      price: 90000,
+      recipientName: "Titular",
+      soldAt: null,
+      status: "assigned",
+      updatedAt: new Date("2026-05-29T00:00:00.000Z"),
+      usedAt: null
+    };
+    const updatedTicket = {
+      ...ticket,
+      notes: "Nota existente\nAnulada: Reporte duplicado",
+      status: "void"
+    };
+    const findUnique = jest.fn().mockResolvedValue(ticket);
+    const update = jest.fn().mockResolvedValue(updatedTicket);
+    const create = jest.fn().mockResolvedValue({});
+    const prisma = {
+      auditLog: { create },
+      isConfigured: () => true,
+      ticket: { findUnique, update }
+    } as unknown as PrismaService;
+    const store = new EventStoreService(prisma);
+
+    await expect(
+      store.voidTicket("tck_void", { reason: "Reporte duplicado" }, actor)
+    ).resolves.toMatchObject({
+      notes: "Nota existente\nAnulada: Reporte duplicado",
+      status: "void"
+    });
+    expect(update).toHaveBeenCalledWith({
+      data: {
+        notes: "Nota existente\nAnulada: Reporte duplicado",
+        status: "void"
+      },
+      where: { id: "tck_void" }
+    });
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "ticket.void",
+        actor: "Supervisor Real",
+        entityId: "tck_void",
+        entityType: "ticket",
+        eventId: "evt_db",
+        fromStatus: "assigned",
+        metadata: expect.objectContaining({
+          actorId: "usr_supervisor",
+          actorRole: "supervisor",
+          reason: "Reporte duplicado",
+          ticketCode: "VIP-099"
+        }),
+        toStatus: "void"
+      })
+    });
+  });
+
+  it("requires admin role to void a paid ticket", async () => {
+    const store = new EventStoreService();
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const ticket = tickets[0];
+    if (!ticket) {
+      throw new Error("ticket was not created");
+    }
+    const sale = await store.registerSale(ticket.id, {
+      amount: 90000,
+      buyerName: "Comprador Test",
+      method: "cash"
+    });
+    await store.verifyPayment(sale.payment.id, {
+      reviewedBy: "Admin Test",
+      status: "approved"
+    });
+
+    await expect(
+      store.voidTicket(
+        ticket.id,
+        { reason: "Solicitud de anulacion" },
+        {
+          email: "supervisor@example.com",
+          id: "usr_supervisor",
+          name: "Supervisor Test",
+          role: "supervisor"
+        }
+      )
+    ).rejects.toThrow("paid tickets can only be voided by admin");
+  });
+
   it("does not allow registering a sale twice for the same ticket", async () => {
     const store = new EventStoreService();
     const tickets = await store.createTicketBatch("evt_demo", {

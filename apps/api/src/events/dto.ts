@@ -192,6 +192,13 @@ export class CheckInTicketDto {
   checkedInBy?: string;
 }
 
+export class VoidTicketDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 export class VerifyPaymentDto {
   @IsIn(EVIDENCE_STATUS_VALUES)
   status!: EvidenceStatus;

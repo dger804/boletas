@@ -444,6 +444,14 @@ const ticketsUrl = `${apiBase}/tickets`;
     const isAssignableTicket = (ticket: TicketRecord) =>
       ["assigned", "available", "reserved"].includes(ticket.status);
 
+    const isVoidableTicket = (ticket: TicketRecord) => {
+      if (!canManageTickets() || ["used", "void"].includes(ticket.status)) {
+        return false;
+      }
+
+      return ticket.status !== "paid" || currentUser?.role === "admin";
+    };
+
     const getSelectedTicket = () =>
       currentTickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
 
@@ -666,6 +674,62 @@ const ticketsUrl = `${apiBase}/tickets`;
       setStatus(`Asignacion preparada para ${ticket.code}.`);
     };
 
+    const voidSelectedTicket = async (ticketId: string) => {
+      const { ticketsUrl } = getConfig();
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticketsUrl || !ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      if (!isVoidableTicket(ticket)) {
+        setStatus("Esta boleta no puede anularse con tu rol o estado actual.", "error");
+        return;
+      }
+
+      const reason = window.prompt(
+        `Motivo para anular la boleta ${ticket.code}`,
+        ""
+      );
+
+      if (reason === null) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Confirmar anulacion de la boleta ${ticket.code}. Esta accion bloquea venta, pago e ingreso.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setStatus(`Anulando boleta ${ticket.code}.`);
+
+      try {
+        await requestJson<TicketRecord>(
+          `${ticketsUrl}/${encodeURIComponent(ticket.id)}/void`,
+          {
+            body: JSON.stringify({
+              ...(reason.trim() ? { reason: reason.trim() } : {})
+            }),
+            method: "PATCH"
+          }
+        );
+        selectedTicketId = "";
+        setStatus(`Boleta ${ticket.code} anulada.`, "success");
+        await loadTickets();
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible anular la boleta.",
+          "error"
+        );
+      } finally {
+        updateSelectedTicketPanels();
+      }
+    };
+
     const hideResponsibleDetails = () => {
       const dialog = document.querySelector<HTMLElement>("[data-responsible-dialog]");
       dialog?.classList.add("hidden");
@@ -852,10 +916,22 @@ const ticketsUrl = `${apiBase}/tickets`;
               </button>
             `
             : `<span class="text-xs text-zinc-400">No disponible</span>`;
+          const voidButton = isVoidableTicket(ticket)
+            ? `
+              <button
+                class="inline-flex h-9 items-center rounded-md border border-rose-200 px-3 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                data-void-ticket="${escapeHtml(ticket.id)}"
+                type="button"
+              >
+                Anular
+              </button>
+            `
+            : "";
           const actionButtons = `
-            <div class="flex justify-end gap-2">
+            <div class="flex flex-wrap justify-end gap-2">
               ${assignButton}
               ${saleButton}
+              ${voidButton}
             </div>
           `;
 
@@ -1048,6 +1124,13 @@ const ticketsUrl = `${apiBase}/tickets`;
 
         if (assignmentButton?.dataset.selectTicketAssignment) {
           selectTicketForAssignment(assignmentButton.dataset.selectTicketAssignment);
+          return;
+        }
+
+        const voidButton = target.closest<HTMLButtonElement>("[data-void-ticket]");
+
+        if (voidButton?.dataset.voidTicket) {
+          void voidSelectedTicket(voidButton.dataset.voidTicket);
           return;
         }
 

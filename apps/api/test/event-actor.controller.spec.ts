@@ -1,4 +1,6 @@
 import type { AuthenticatedUser } from "@boletas/shared";
+import "reflect-metadata";
+import { ROLES_KEY } from "../src/auth/roles.decorator";
 import { PaymentsController } from "../src/events/payments.controller";
 import { TicketsController } from "../src/events/tickets.controller";
 import type { EventStoreService } from "../src/events/event-store.service";
@@ -47,5 +49,14 @@ describe("event action actors", () => {
       { checkedInBy: "Supervisor Real" },
       user
     );
+  });
+
+  it("limits ticket voiding to management roles", () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      TicketsController.prototype.voidTicket
+    );
+
+    expect(roles).toEqual(["supervisor", "admin"]);
   });
 });

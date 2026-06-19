@@ -11,7 +11,12 @@ import {
 import type { RequestWithUser } from "../auth/auth-token.guard";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
-import { AssignTicketDto, CheckInTicketDto, RegisterSaleDto } from "./dto";
+import {
+  AssignTicketDto,
+  CheckInTicketDto,
+  RegisterSaleDto,
+  VoidTicketDto
+} from "./dto";
 import { EventStoreService } from "./event-store.service";
 
 @Controller("tickets")
@@ -43,6 +48,16 @@ export class TicketsController {
     @Req() request: RequestWithUser
   ) {
     return this.store.registerSale(ticketId, body, request.user);
+  }
+
+  @Roles("supervisor", "admin")
+  @Patch(":ticketId/void")
+  voidTicket(
+    @Param("ticketId") ticketId: string,
+    @Body() body: VoidTicketDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.voidTicket(ticketId, body, request.user);
   }
 
   @Roles("regular", "supervisor", "admin")

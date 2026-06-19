@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   Optional
@@ -33,6 +34,7 @@ import type {
   CreateTicketBatchDto,
   RegisterSaleDto,
   UpdateEventDto,
+  VoidTicketDto,
   VerifyPaymentDto
 } from "./dto";
 
@@ -749,6 +751,60 @@ export class EventStoreService {
     return { ticket, payment };
   }
 
+  async voidTicket(
+    ticketId: string,
+    dto: VoidTicketDto = {},
+    actor?: AuthenticatedUser
+  ) {
+    if (this.prisma?.isConfigured()) {
+      const ticket = await this.findPrismaTicket(ticketId);
+
+      this.assertTicketCanBeVoided(ticket.status, actor);
+
+      if (ticket.status === "void") {
+        return this.toTicketRecord(ticket);
+      }
+
+      const notes = this.appendVoidReason(ticket.notes, dto.reason);
+      const updated = await this.prisma.ticket.update({
+        data: {
+          notes,
+          status: "void"
+        },
+        where: { id: ticket.id }
+      });
+
+      await this.createAuditLog({
+        action: "ticket.void",
+        actor,
+        entityId: ticket.id,
+        entityType: "ticket",
+        eventId: ticket.eventId,
+        fromStatus: ticket.status,
+        metadata: {
+          reason: dto.reason?.trim() || null,
+          ticketCode: ticket.code
+        },
+        toStatus: updated.status
+      });
+
+      return this.toTicketRecord(updated);
+    }
+
+    const ticket = this.findTicket(ticketId);
+
+    this.assertTicketCanBeVoided(ticket.status, actor);
+
+    if (ticket.status === "void") {
+      return ticket;
+    }
+
+    ticket.status = "void";
+    ticket.notes = this.appendVoidReason(ticket.notes, dto.reason) ?? ticket.notes;
+
+    return ticket;
+  }
+
   async checkInTicket(
     ticketId: string,
     dto: CheckInTicketDto,
@@ -1084,6 +1140,26 @@ export class EventStoreService {
     if (["paid", "sold", "used", "void"].includes(status)) {
       throw new BadRequestException("ticket cannot be assigned in its current status");
     }
+  }
+
+  private assertTicketCanBeVoided(status: TicketStatus, actor?: AuthenticatedUser) {
+    if (status === "used") {
+      throw new BadRequestException("used tickets cannot be voided");
+    }
+
+    if (status === "paid" && actor?.role !== "admin") {
+      throw new ForbiddenException("paid tickets can only be voided by admin");
+    }
+  }
+
+  private appendVoidReason(notes?: string | null, reason?: string) {
+    const trimmedReason = reason?.trim();
+
+    if (!trimmedReason) {
+      return notes ?? undefined;
+    }
+
+    return [notes, `Anulada: ${trimmedReason}`].filter(Boolean).join("\n");
   }
 
   private findTicket(ticketId: string) {
