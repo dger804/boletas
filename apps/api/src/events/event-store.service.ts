@@ -766,13 +766,27 @@ export class EventStoreService {
       }
 
       const notes = this.appendVoidReason(ticket.notes, dto.reason);
-      const updated = await this.prisma.ticket.update({
-        data: {
-          notes,
-          status: "void"
-        },
-        where: { id: ticket.id }
-      });
+      const reviewedAt = new Date();
+      const [updated, rejectedPendingPayments] = await this.prisma.$transaction([
+        this.prisma.ticket.update({
+          data: {
+            notes,
+            status: "void"
+          },
+          where: { id: ticket.id }
+        }),
+        this.prisma.paymentEvidence.updateMany({
+          data: {
+            reviewedAt,
+            reviewedBy: this.actorName(actor),
+            status: "rejected"
+          },
+          where: {
+            status: "pending",
+            ticketId: ticket.id
+          }
+        })
+      ]);
 
       await this.createAuditLog({
         action: "ticket.void",
@@ -783,6 +797,7 @@ export class EventStoreService {
         fromStatus: ticket.status,
         metadata: {
           reason: dto.reason?.trim() || null,
+          rejectedPendingPayments: rejectedPendingPayments.count,
           ticketCode: ticket.code
         },
         toStatus: updated.status
@@ -801,6 +816,17 @@ export class EventStoreService {
 
     ticket.status = "void";
     ticket.notes = this.appendVoidReason(ticket.notes, dto.reason) ?? ticket.notes;
+    const reviewedAt = now();
+    const rejectedPendingPayments = this.payments.filter(
+      (payment) => payment.ticketId === ticket.id && payment.status === "pending"
+    );
+
+    rejectedPendingPayments.forEach((payment) => {
+      payment.status = "rejected";
+      payment.reviewedAt = reviewedAt;
+      payment.reviewedBy = this.actorName(actor);
+      payment.notes = this.appendVoidReason(payment.notes, dto.reason) ?? payment.notes;
+    });
 
     return ticket;
   }
@@ -915,12 +941,21 @@ export class EventStoreService {
 
     if (this.prisma?.isConfigured()) {
       const payment = await this.prisma.paymentEvidence.findUnique({
+        include: {
+          ticket: {
+            select: {
+              status: true
+            }
+          }
+        },
         where: { id: paymentId }
       });
 
       if (!payment) {
         throw new NotFoundException("payment not found");
       }
+
+      this.assertPaymentCanBeReviewed(payment.status, payment.ticket.status, dto.status);
 
       const reviewedAt = new Date();
       const verified = await this.prisma.$transaction(async (tx) => {
@@ -979,12 +1014,15 @@ export class EventStoreService {
       throw new NotFoundException("payment not found");
     }
 
+    const ticket = this.findTicket(payment.ticketId);
+
+    this.assertPaymentCanBeReviewed(payment.status, ticket.status, dto.status);
+
     payment.status = dto.status;
     payment.reviewedAt = now();
     payment.reviewedBy = reviewedBy;
     payment.notes = dto.notes ?? payment.notes;
 
-    const ticket = this.findTicket(payment.ticketId);
     if (dto.status === "approved") {
       ticket.status = "paid";
       ticket.paidAt = now();
@@ -1149,6 +1187,20 @@ export class EventStoreService {
 
     if (status === "paid" && actor?.role !== "admin") {
       throw new ForbiddenException("paid tickets can only be voided by admin");
+    }
+  }
+
+  private assertPaymentCanBeReviewed(
+    status: PaymentEvidence["status"],
+    ticketStatus: TicketStatus,
+    nextStatus: PaymentEvidence["status"]
+  ) {
+    if (status !== "pending") {
+      throw new BadRequestException("payment evidence has already been reviewed");
+    }
+
+    if (nextStatus === "approved" && ticketStatus === "void") {
+      throw new BadRequestException("void tickets cannot receive payment approval");
     }
   }
 

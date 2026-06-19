@@ -517,10 +517,16 @@ describe("EventStoreService", () => {
     };
     const findUnique = jest.fn().mockResolvedValue(ticket);
     const update = jest.fn().mockResolvedValue(updatedTicket);
+    const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+    const transaction = jest.fn(async (operations: Array<Promise<unknown>>) =>
+      Promise.all(operations)
+    );
     const create = jest.fn().mockResolvedValue({});
     const prisma = {
+      $transaction: transaction,
       auditLog: { create },
       isConfigured: () => true,
+      paymentEvidence: { updateMany },
       ticket: { findUnique, update }
     } as unknown as PrismaService;
     const store = new EventStoreService(prisma);
@@ -550,11 +556,68 @@ describe("EventStoreService", () => {
           actorId: "usr_supervisor",
           actorRole: "supervisor",
           reason: "Reporte duplicado",
+          rejectedPendingPayments: 0,
           ticketCode: "VIP-099"
         }),
         toStatus: "void"
       })
     });
+    expect(updateMany).toHaveBeenCalledWith({
+      data: {
+        reviewedAt: expect.any(Date),
+        reviewedBy: "Supervisor Real",
+        status: "rejected"
+      },
+      where: {
+        status: "pending",
+        ticketId: "tck_void"
+      }
+    });
+  });
+
+  it("rejects pending evidence when voiding a sold ticket", async () => {
+    const store = new EventStoreService();
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const ticket = tickets[0];
+    if (!ticket) {
+      throw new Error("ticket was not created");
+    }
+
+    const sale = await store.registerSale(ticket.id, {
+      amount: 90000,
+      buyerName: "Comprador Test",
+      method: "transfer"
+    });
+
+    await expect(
+      store.voidTicket(
+        ticket.id,
+        { reason: "Venta cancelada" },
+        {
+          email: "supervisor@example.com",
+          id: "usr_supervisor",
+          name: "Supervisor Test",
+          role: "supervisor"
+        }
+      )
+    ).resolves.toMatchObject({ status: "void" });
+
+    const payments = await store.listPayments("evt_demo");
+    expect(payments.find((payment) => payment.id === sale.payment.id)).toMatchObject({
+      notes: "Anulada: Venta cancelada",
+      reviewedBy: "Supervisor Test",
+      status: "rejected"
+    });
+
+    await expect(
+      store.verifyPayment(sale.payment.id, {
+        reviewedBy: "Supervisor Test",
+        status: "approved"
+      })
+    ).rejects.toThrow("payment evidence has already been reviewed");
   });
 
   it("requires admin role to void a paid ticket", async () => {

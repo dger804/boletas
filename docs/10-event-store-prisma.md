@@ -80,7 +80,7 @@ El endpoint completo `GET /api/events/:eventId/dashboard` queda protegido para `
 
 `PATCH /api/tickets/:ticketId/check-in` queda disponible para `regular`, `supervisor` y `admin`. Solo permite registrar ingreso sobre boletas `paid`; al hacerlo cambia la boleta a `used`, registra `usedAt` y guarda `checkedInBy`. La pantalla estatica `/check-in` consume `GET /api/tickets?eventId=...` y este endpoint para operar entrada por evento.
 
-`PATCH /api/tickets/:ticketId/void` queda disponible para `supervisor` y `admin`. Permite anular boletas no usadas, registra auditoria `ticket.void` y exige rol `admin` si la boleta ya estaba `paid`.
+`PATCH /api/tickets/:ticketId/void` queda disponible para `supervisor` y `admin`. Permite anular boletas no usadas, registra auditoria `ticket.void` y exige rol `admin` si la boleta ya estaba `paid`. Si la boleta anulada tiene evidencias de pago `pending`, la API las marca como `rejected` con el usuario autenticado como revisor para impedir aprobaciones posteriores sobre una boleta `void`.
 
 El frontend estatico renderiza un fallback y luego refresca el endpoint protegido `summary` desde el navegador con `Authorization: Bearer <token>`. Esto evita publicar `ADMIN_API_TOKEN` y evita que el dashboard quede congelado con datos del momento del build.
 

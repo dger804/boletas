@@ -324,7 +324,7 @@ Body opcional:
 }
 ```
 
-La anulacion cambia la boleta a `void`, conserva notas anteriores y agrega el motivo cuando se informa. La API permite anular boletas `available`, `assigned`, `reserved` o `sold`; una boleta `paid` solo puede anularla `admin`; una boleta `used` no puede anularse. La accion queda registrada como auditoria `ticket.void`.
+La anulacion cambia la boleta a `void`, conserva notas anteriores y agrega el motivo cuando se informa. La API permite anular boletas `available`, `assigned`, `reserved` o `sold`; una boleta `paid` solo puede anularla `admin`; una boleta `used` no puede anularse. Si hay evidencias de pago `pending` asociadas, quedan `rejected` automaticamente con el usuario autenticado como revisor. La accion queda registrada como auditoria `ticket.void`.
 
 ## Registrar entrada
 
@@ -386,7 +386,7 @@ PATCH /api/payments/:paymentId/verify
 Authorization: Bearer <token_supervisor_o_admin>
 ```
 
-Al aprobar una evidencia, la API actualiza la boleta asociada a `paid`. Al rechazarla, la evidencia queda `rejected` y la boleta conserva su estado actual.
+Al aprobar una evidencia, la API actualiza la boleta asociada a `paid`. Al rechazarla, la evidencia queda `rejected` y la boleta conserva su estado actual. Una evidencia ya revisada no puede revisarse de nuevo, y una boleta `void` no puede recibir aprobacion de pago.
 
 Aunque el frontend envie `reviewedBy`, la API usa como fuente autoritativa el usuario autenticado en la sesion. La pantalla mantiene el campo como solo lectura para que el operador vea quien quedara registrado.
 
