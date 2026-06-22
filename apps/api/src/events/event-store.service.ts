@@ -32,7 +32,9 @@ import type {
   CreateDistributorDto,
   CreateEventDto,
   CreateTicketBatchDto,
+  ReleaseTicketReservationDto,
   RegisterSaleDto,
+  ReserveTicketDto,
   UpdateEventDto,
   VoidTicketDto,
   VerifyPaymentDto
@@ -652,6 +654,121 @@ export class EventStoreService {
     return this.withDistributorContact(ticket);
   }
 
+  async reserveTicket(
+    ticketId: string,
+    dto: ReserveTicketDto = {},
+    actor?: AuthenticatedUser
+  ) {
+    if (this.prisma?.isConfigured()) {
+      const ticket = await this.findPrismaTicket(ticketId);
+
+      this.assertTicketCanBeReserved(ticket.status);
+
+      const updated = await this.prisma.ticket.update({
+        data: {
+          notes: dto.notes ?? ticket.notes,
+          recipientName: dto.recipientName ?? ticket.recipientName,
+          status: "reserved"
+        },
+        include: {
+          distributor: {
+            select: {
+              email: true,
+              name: true,
+              notes: true,
+              phone: true
+            }
+          }
+        },
+        where: { id: ticket.id }
+      });
+
+      await this.createAuditLog({
+        action: "ticket.reserve",
+        actor,
+        entityId: ticket.id,
+        entityType: "ticket",
+        eventId: ticket.eventId,
+        fromStatus: ticket.status,
+        metadata: {
+          recipientName: updated.recipientName,
+          ticketCode: ticket.code
+        },
+        toStatus: updated.status
+      });
+
+      return this.toTicketRecord(updated);
+    }
+
+    const ticket = this.findTicket(ticketId);
+
+    this.assertTicketCanBeReserved(ticket.status);
+
+    ticket.status = "reserved";
+    ticket.recipientName = dto.recipientName ?? ticket.recipientName;
+    ticket.notes = dto.notes ?? ticket.notes;
+
+    return this.withDistributorContact(ticket);
+  }
+
+  async releaseTicketReservation(
+    ticketId: string,
+    dto: ReleaseTicketReservationDto = {},
+    actor?: AuthenticatedUser
+  ) {
+    if (this.prisma?.isConfigured()) {
+      const ticket = await this.findPrismaTicket(ticketId);
+
+      this.assertTicketCanReleaseReservation(ticket.status);
+
+      const nextStatus = ticket.distributorId ? "assigned" : "available";
+      const updated = await this.prisma.ticket.update({
+        data: {
+          notes: dto.notes ?? ticket.notes,
+          recipientName: null,
+          status: nextStatus
+        },
+        include: {
+          distributor: {
+            select: {
+              email: true,
+              name: true,
+              notes: true,
+              phone: true
+            }
+          }
+        },
+        where: { id: ticket.id }
+      });
+
+      await this.createAuditLog({
+        action: "ticket.release_reservation",
+        actor,
+        entityId: ticket.id,
+        entityType: "ticket",
+        eventId: ticket.eventId,
+        fromStatus: ticket.status,
+        metadata: {
+          hasDistributor: Boolean(ticket.distributorId),
+          ticketCode: ticket.code
+        },
+        toStatus: updated.status
+      });
+
+      return this.toTicketRecord(updated);
+    }
+
+    const ticket = this.findTicket(ticketId);
+
+    this.assertTicketCanReleaseReservation(ticket.status);
+
+    ticket.status = ticket.distributorId ? "assigned" : "available";
+    ticket.recipientName = undefined;
+    ticket.notes = dto.notes ?? ticket.notes;
+
+    return this.withDistributorContact(ticket);
+  }
+
   async registerSale(
     ticketId: string,
     dto: RegisterSaleDto,
@@ -1177,6 +1294,18 @@ export class EventStoreService {
   private assertTicketCanBeAssigned(status: TicketStatus) {
     if (["paid", "sold", "used", "void"].includes(status)) {
       throw new BadRequestException("ticket cannot be assigned in its current status");
+    }
+  }
+
+  private assertTicketCanBeReserved(status: TicketStatus) {
+    if (!["available", "assigned", "reserved"].includes(status)) {
+      throw new BadRequestException("ticket cannot be reserved in its current status");
+    }
+  }
+
+  private assertTicketCanReleaseReservation(status: TicketStatus) {
+    if (status !== "reserved") {
+      throw new BadRequestException("only reserved tickets can be released");
     }
   }
 

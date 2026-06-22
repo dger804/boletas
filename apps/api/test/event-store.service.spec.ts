@@ -654,6 +654,65 @@ describe("EventStoreService", () => {
     ).rejects.toThrow("paid tickets can only be voided by admin");
   });
 
+  it("reserves and releases a ticket before sale", async () => {
+    const store = new EventStoreService();
+    const distributor = await store.addDistributor("evt_demo", {
+      name: "Responsable Reserva",
+      phone: "+57 310 123 4567"
+    });
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const ticket = tickets[0];
+    if (!ticket) {
+      throw new Error("ticket was not created");
+    }
+
+    const assigned = await store.assignTicket(ticket.id, {
+      distributorId: distributor.id
+    });
+
+    const reserved = await store.reserveTicket(assigned.id, {
+      notes: "Apartada por llamada",
+      recipientName: "Comprador Reserva"
+    });
+
+    expect(reserved).toMatchObject({
+      distributorName: "Responsable Reserva",
+      notes: "Apartada por llamada",
+      recipientName: "Comprador Reserva",
+      status: "reserved"
+    });
+
+    const released = await store.releaseTicketReservation(reserved.id, {
+      notes: "Reserva liberada"
+    });
+
+    expect(released).toMatchObject({
+      distributorName: "Responsable Reserva",
+      notes: "Reserva liberada",
+      status: "assigned"
+    });
+    expect(released.recipientName).toBeUndefined();
+  });
+
+  it("does not allow releasing tickets that are not reserved", async () => {
+    const store = new EventStoreService();
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const ticket = tickets[0];
+    if (!ticket) {
+      throw new Error("ticket was not created");
+    }
+
+    await expect(store.releaseTicketReservation(ticket.id)).rejects.toThrow(
+      "only reserved tickets can be released"
+    );
+  });
+
   it("does not allow registering a sale twice for the same ticket", async () => {
     const store = new EventStoreService();
     const tickets = await store.createTicketBatch("evt_demo", {

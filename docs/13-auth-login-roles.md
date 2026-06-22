@@ -154,6 +154,8 @@ POST  /api/events/:eventId/tickets/batch  admin
 
 GET   /api/tickets                        regular, supervisor, admin
 PATCH /api/tickets/:ticketId/assign       supervisor, admin
+PATCH /api/tickets/:ticketId/reserve      regular, supervisor, admin
+PATCH /api/tickets/:ticketId/release      regular, supervisor, admin
 PATCH /api/tickets/:ticketId/sale         regular, supervisor, admin
 PATCH /api/tickets/:ticketId/void         supervisor, admin
 PATCH /api/tickets/:ticketId/check-in     regular, supervisor, admin
@@ -291,6 +293,35 @@ Authorization: Bearer <token_supervisor_o_admin>
 
 La API bloquea reasignar boletas `sold`, `paid`, `used` o `void`, porque cambiar responsable en esos estados podria borrar trazabilidad operativa de ventas, pagos o ingreso.
 
+## Reservar boletas
+
+Los usuarios `regular`, `supervisor` y `admin` pueden apartar boletas desde el inventario:
+
+```txt
+PATCH /api/tickets/:ticketId/reserve
+Authorization: Bearer <token>
+```
+
+Body:
+
+```json
+{
+  "recipientName": "Comprador Reserva",
+  "notes": "Apartada por llamada"
+}
+```
+
+La reserva cambia la boleta a `reserved`, conserva el responsable asignado si existe y guarda el titular sugerido en `recipientName`. Solo se pueden reservar boletas `available`, `assigned` o `reserved`. Una boleta reservada todavia puede venderse; al registrar la venta, el comprador pasa a `buyerName` y se crea la evidencia de pago `pending`.
+
+Para cancelar una reserva antes de venta:
+
+```txt
+PATCH /api/tickets/:ticketId/release
+Authorization: Bearer <token>
+```
+
+La liberacion solo aplica a boletas `reserved`. Si la boleta tenia responsable, vuelve a `assigned`; si no tenia responsable, vuelve a `available`. El titular de reserva se limpia para evitar confundirlo con comprador real.
+
 Los usuarios `admin` tambien ven el formulario de creacion de lotes, que usa:
 
 ```txt
@@ -403,6 +434,8 @@ ticket.assign
 ticket.sale
 ticket.check_in
 ticket.void
+ticket.reserve
+ticket.release_reservation
 payment.verify
 ```
 

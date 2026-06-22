@@ -14,7 +14,9 @@ import { RolesGuard } from "../auth/roles.guard";
 import {
   AssignTicketDto,
   CheckInTicketDto,
+  ReleaseTicketReservationDto,
   RegisterSaleDto,
+  ReserveTicketDto,
   VoidTicketDto
 } from "./dto";
 import { EventStoreService } from "./event-store.service";
@@ -38,6 +40,26 @@ export class TicketsController {
     @Req() request: RequestWithUser
   ) {
     return this.store.assignTicket(ticketId, body, request.user);
+  }
+
+  @Roles("regular", "supervisor", "admin")
+  @Patch(":ticketId/reserve")
+  reserveTicket(
+    @Param("ticketId") ticketId: string,
+    @Body() body: ReserveTicketDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.reserveTicket(ticketId, body, request.user);
+  }
+
+  @Roles("regular", "supervisor", "admin")
+  @Patch(":ticketId/release")
+  releaseTicketReservation(
+    @Param("ticketId") ticketId: string,
+    @Body() body: ReleaseTicketReservationDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.releaseTicketReservation(ticketId, body, request.user);
   }
 
   @Roles("regular", "supervisor", "admin")

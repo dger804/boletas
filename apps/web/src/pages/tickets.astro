@@ -438,6 +438,12 @@ const ticketsUrl = `${apiBase}/tickets`;
     const canManageTickets = () =>
       currentUser?.role === "admin" || currentUser?.role === "supervisor";
 
+    const isReservableTicket = (ticket: TicketRecord) =>
+      ["assigned", "available", "reserved"].includes(ticket.status);
+
+    const isReservationReleaseableTicket = (ticket: TicketRecord) =>
+      ticket.status === "reserved";
+
     const isSaleableTicket = (ticket: TicketRecord) =>
       ["assigned", "available", "reserved"].includes(ticket.status);
 
@@ -628,8 +634,46 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
     };
 
+    const updateReservationPanel = () => {
+      const ticket = getSelectedTicket();
+      const selectedCode = document.querySelector<HTMLElement>("[data-reserve-ticket-code]");
+      const submitButton = document.querySelector<HTMLButtonElement>("[data-reserve-ticket-submit]");
+      const form = document.querySelector<HTMLFormElement>("[data-reserve-ticket-form]");
+
+      if (selectedCode) {
+        selectedCode.textContent = ticket
+          ? `Boleta ${ticket.code}`
+          : "Selecciona una boleta";
+      }
+
+      if (submitButton) {
+        submitButton.disabled = !ticket || !isReservableTicket(ticket);
+      }
+
+      if (!form) {
+        return;
+      }
+
+      if (!ticket) {
+        form.reset();
+        return;
+      }
+
+      const recipientName = form.querySelector<HTMLInputElement>('[name="recipientName"]');
+      const notes = form.querySelector<HTMLTextAreaElement>('[name="notes"]');
+
+      if (recipientName) {
+        recipientName.value = ticket.recipientName ?? "";
+      }
+
+      if (notes) {
+        notes.value = ticket.notes ?? "";
+      }
+    };
+
     const updateSelectedTicketPanels = () => {
       updateSalePanel();
+      updateReservationPanel();
       updateAssignmentPanel();
     };
 
@@ -649,6 +693,24 @@ const ticketsUrl = `${apiBase}/tickets`;
       selectedTicketId = ticket.id;
       updateSelectedTicketPanels();
       setStatus(`Venta preparada para ${ticket.code}.`);
+    };
+
+    const selectTicketForReservation = (ticketId: string) => {
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      if (!isReservableTicket(ticket)) {
+        setStatus("Esta boleta ya no permite reserva.", "error");
+        return;
+      }
+
+      selectedTicketId = ticket.id;
+      updateSelectedTicketPanels();
+      setStatus(`Reserva preparada para ${ticket.code}.`);
     };
 
     const selectTicketForAssignment = (ticketId: string) => {
@@ -723,6 +785,51 @@ const ticketsUrl = `${apiBase}/tickets`;
       } catch (error) {
         setStatus(
           error instanceof Error ? error.message : "No fue posible anular la boleta.",
+          "error"
+        );
+      } finally {
+        updateSelectedTicketPanels();
+      }
+    };
+
+    const releaseTicketReservation = async (ticketId: string) => {
+      const { ticketsUrl } = getConfig();
+      const ticket = currentTickets.find((item) => item.id === ticketId);
+
+      if (!ticketsUrl || !ticket) {
+        setStatus("No se encontro la boleta seleccionada.", "error");
+        return;
+      }
+
+      if (!isReservationReleaseableTicket(ticket)) {
+        setStatus("Solo se pueden liberar boletas reservadas.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Confirmar liberacion de la reserva de la boleta ${ticket.code}.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setStatus(`Liberando reserva de ${ticket.code}.`);
+
+      try {
+        await requestJson<TicketRecord>(
+          `${ticketsUrl}/${encodeURIComponent(ticket.id)}/release`,
+          {
+            body: JSON.stringify({}),
+            method: "PATCH"
+          }
+        );
+        selectedTicketId = "";
+        setStatus(`Reserva de ${ticket.code} liberada.`, "success");
+        await loadTickets();
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible liberar la reserva.",
           "error"
         );
       } finally {
@@ -829,6 +936,7 @@ const ticketsUrl = `${apiBase}/tickets`;
       const body = document.querySelector<HTMLElement>("[data-tickets-body]");
       const count = document.querySelector<HTMLElement>("[data-tickets-count]");
       const total = document.querySelector<HTMLElement>("[data-tickets-total]");
+      const reserved = document.querySelector<HTMLElement>("[data-tickets-reserved]");
       const capitalization = document.querySelector<HTMLElement>("[data-tickets-capitalization]");
 
       if (count) {
@@ -839,6 +947,10 @@ const ticketsUrl = `${apiBase}/tickets`;
         total.textContent = money.format(
           tickets.reduce((sum, ticket) => sum + ticket.price, 0)
         );
+      }
+
+      if (reserved) {
+        reserved.textContent = `${tickets.filter((ticket) => ticket.status === "reserved").length}`;
       }
 
       if (capitalization) {
@@ -905,6 +1017,28 @@ const ticketsUrl = `${apiBase}/tickets`;
                 </button>
               `
               : "";
+          const reserveButton = isReservableTicket(ticket)
+            ? `
+              <button
+                class="inline-flex h-9 items-center rounded-md border border-violet-200 px-3 text-sm font-medium text-violet-700 hover:bg-violet-50"
+                data-select-ticket-reservation="${escapeHtml(ticket.id)}"
+                type="button"
+              >
+                ${ticket.status === "reserved" ? "Editar reserva" : "Reservar"}
+              </button>
+            `
+            : "";
+          const releaseButton = isReservationReleaseableTicket(ticket)
+            ? `
+              <button
+                class="inline-flex h-9 items-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                data-release-ticket-reservation="${escapeHtml(ticket.id)}"
+                type="button"
+              >
+                Liberar
+              </button>
+            `
+            : "";
           const saleButton = isSaleableTicket(ticket)
             ? `
               <button
@@ -930,6 +1064,8 @@ const ticketsUrl = `${apiBase}/tickets`;
           const actionButtons = `
             <div class="flex flex-wrap justify-end gap-2">
               ${assignButton}
+              ${reserveButton}
+              ${releaseButton}
               ${saleButton}
               ${voidButton}
             </div>
@@ -1034,7 +1170,9 @@ const ticketsUrl = `${apiBase}/tickets`;
           !currentTickets.some(
             (ticket) =>
               ticket.id === selectedTicketId &&
-              (isSaleableTicket(ticket) || isAssignableTicket(ticket))
+              (isSaleableTicket(ticket) ||
+                isAssignableTicket(ticket) ||
+                isReservableTicket(ticket))
           )
         ) {
           selectedTicketId = "";
@@ -1127,6 +1265,26 @@ const ticketsUrl = `${apiBase}/tickets`;
           return;
         }
 
+        const reservationButton = target.closest<HTMLButtonElement>(
+          "[data-select-ticket-reservation]"
+        );
+
+        if (reservationButton?.dataset.selectTicketReservation) {
+          selectTicketForReservation(reservationButton.dataset.selectTicketReservation);
+          return;
+        }
+
+        const releaseReservationButton = target.closest<HTMLButtonElement>(
+          "[data-release-ticket-reservation]"
+        );
+
+        if (releaseReservationButton?.dataset.releaseTicketReservation) {
+          void releaseTicketReservation(
+            releaseReservationButton.dataset.releaseTicketReservation
+          );
+          return;
+        }
+
         const voidButton = target.closest<HTMLButtonElement>("[data-void-ticket]");
 
         if (voidButton?.dataset.voidTicket) {
@@ -1207,6 +1365,64 @@ const ticketsUrl = `${apiBase}/tickets`;
           );
         } finally {
           submitButton?.removeAttribute("disabled");
+        }
+      });
+    };
+
+    const bindReserveTicketForm = () => {
+      const form = document.querySelector<HTMLFormElement>("[data-reserve-ticket-form]");
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const { ticketsUrl } = getConfig();
+        const ticket = getSelectedTicket();
+        const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+
+        if (!ticketsUrl || !ticket) {
+          setStatus("Selecciona una boleta antes de reservar.", "error");
+          return;
+        }
+
+        if (!isReservableTicket(ticket)) {
+          setStatus("Esta boleta ya no permite reserva.", "error");
+          return;
+        }
+
+        const formData = new FormData(form);
+        const notes = String(formData.get("notes") ?? "").trim();
+        const recipientName = String(formData.get("recipientName") ?? "").trim();
+
+        if (!recipientName) {
+          setStatus("Registra el titular de la reserva.", "error");
+          return;
+        }
+
+        submitButton?.setAttribute("disabled", "true");
+
+        try {
+          await requestJson<TicketRecord>(
+            `${ticketsUrl}/${encodeURIComponent(ticket.id)}/reserve`,
+            {
+              body: JSON.stringify({
+                recipientName,
+                ...(notes ? { notes } : {})
+              }),
+              method: "PATCH"
+            }
+          );
+          form.reset();
+          selectedTicketId = "";
+          setStatus(`Boleta ${ticket.code} reservada.`, "success");
+          await loadTickets();
+        } catch (error) {
+          setStatus(
+            error instanceof Error ? error.message : "No fue posible reservar la boleta.",
+            "error"
+          );
+        } finally {
+          submitButton?.removeAttribute("disabled");
+          updateSelectedTicketPanels();
         }
       });
     };
@@ -1397,6 +1613,7 @@ const ticketsUrl = `${apiBase}/tickets`;
           bindLogout();
           bindTicketActions();
           bindCreateDistributorForm();
+          bindReserveTicketForm();
           bindAssignTicketForm();
           bindCreateBatchForm();
           bindRegisterSaleForm();
@@ -1526,10 +1743,14 @@ const ticketsUrl = `${apiBase}/tickets`;
       <div class="space-y-6 p-4 sm:p-6">
         <p class="hidden rounded-md border px-3 py-2 text-sm" data-tickets-status></p>
 
-        <section class="grid gap-4 md:grid-cols-3">
+        <section class="grid gap-4 md:grid-cols-4">
           <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <p class="text-xs font-medium uppercase text-zinc-500">Boletas</p>
             <p class="mt-2 text-2xl font-semibold text-zinc-950" data-tickets-count>0</p>
+          </div>
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-medium uppercase text-zinc-500">Reservadas</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-950" data-tickets-reserved>0</p>
           </div>
           <div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <p class="text-xs font-medium uppercase text-zinc-500">Valor total</p>
@@ -1650,6 +1871,49 @@ const ticketsUrl = `${apiBase}/tickets`;
                   type="submit"
                 >
                   Registrar venta
+                </button>
+              </form>
+            </section>
+
+            <section class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex h-10 w-10 items-center justify-center rounded-md bg-violet-600 text-white">
+                  <NotebookText size={18} />
+                </span>
+                <div>
+                  <h2 class="text-sm font-semibold text-zinc-950">Reserva</h2>
+                  <p class="mt-1 text-xs text-zinc-500" data-reserve-ticket-code>Selecciona una boleta</p>
+                </div>
+              </div>
+
+              <form class="mt-5 grid gap-4" data-reserve-ticket-form>
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Titular reserva</span>
+                  <input
+                    class="h-10 rounded-md border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500"
+                    maxlength="120"
+                    name="recipientName"
+                    required
+                    type="text"
+                  />
+                </label>
+
+                <label class="grid gap-2">
+                  <span class="text-sm font-medium text-zinc-700">Notas</span>
+                  <textarea
+                    class="min-h-20 rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                    maxlength="500"
+                    name="notes"
+                  ></textarea>
+                </label>
+
+                <button
+                  class="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-reserve-ticket-submit
+                  disabled
+                  type="submit"
+                >
+                  Guardar reserva
                 </button>
               </form>
             </section>

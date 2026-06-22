@@ -59,4 +59,18 @@ describe("event action actors", () => {
 
     expect(roles).toEqual(["supervisor", "admin"]);
   });
+
+  it("allows reservation actions to operational roles", () => {
+    const reserveRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      TicketsController.prototype.reserveTicket
+    );
+    const releaseRoles = Reflect.getMetadata(
+      ROLES_KEY,
+      TicketsController.prototype.releaseTicketReservation
+    );
+
+    expect(reserveRoles).toEqual(["regular", "supervisor", "admin"]);
+    expect(releaseRoles).toEqual(["regular", "supervisor", "admin"]);
+  });
 });

@@ -50,6 +50,8 @@ POST   /api/events/:eventId/distributors
 POST   /api/events/:eventId/tickets/batch
 GET    /api/tickets
 PATCH  /api/tickets/:ticketId/assign
+PATCH  /api/tickets/:ticketId/reserve
+PATCH  /api/tickets/:ticketId/release
 PATCH  /api/tickets/:ticketId/sale
 PATCH  /api/tickets/:ticketId/void
 PATCH  /api/tickets/:ticketId/check-in
@@ -79,6 +81,8 @@ El endpoint completo `GET /api/events/:eventId/dashboard` queda protegido para `
 `GET /api/payments` queda protegido para `supervisor` y `admin` y devuelve cada evidencia con resumen de la boleta asociada (`ticketCode`, comprador, telefono y estado) cuando existe relacion disponible. Ese contexto no se usa en endpoints publicos sanitizados.
 
 `PATCH /api/tickets/:ticketId/check-in` queda disponible para `regular`, `supervisor` y `admin`. Solo permite registrar ingreso sobre boletas `paid`; al hacerlo cambia la boleta a `used`, registra `usedAt` y guarda `checkedInBy`. La pantalla estatica `/check-in` consume `GET /api/tickets?eventId=...` y este endpoint para operar entrada por evento.
+
+`PATCH /api/tickets/:ticketId/reserve` queda disponible para `regular`, `supervisor` y `admin`. Permite apartar boletas `available`, `assigned` o `reserved` antes de registrar venta. `PATCH /api/tickets/:ticketId/release` libera una boleta `reserved` y la devuelve a `assigned` si tenia responsable o a `available` si no lo tenia.
 
 `PATCH /api/tickets/:ticketId/void` queda disponible para `supervisor` y `admin`. Permite anular boletas no usadas, registra auditoria `ticket.void` y exige rol `admin` si la boleta ya estaba `paid`. Si la boleta anulada tiene evidencias de pago `pending`, la API las marca como `rejected` con el usuario autenticado como revisor para impedir aprobaciones posteriores sobre una boleta `void`.
 
