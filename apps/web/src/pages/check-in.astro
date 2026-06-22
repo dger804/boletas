@@ -444,6 +444,11 @@ const ticketsUrl = `${apiBase}/tickets`;
       window.history.replaceState(null, "", `${window.location.pathname}?${query.toString()}`);
     };
 
+    const getSelectedEvent = () =>
+      currentEvents.find((event) => event.id === selectedEventId) ?? currentEvents[0] ?? null;
+
+    const isSelectedEventClosed = () => getSelectedEvent()?.status === "closed";
+
     const renderEventOptions = () => {
       const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
       const eventName = document.querySelector<HTMLElement>("[data-checkin-event-name]");
@@ -552,7 +557,7 @@ const ticketsUrl = `${apiBase}/tickets`;
             `
             : `<span class="text-sm text-zinc-400">Sin ingreso</span>`;
           const action =
-            ticket.status === "paid"
+            ticket.status === "paid" && !isSelectedEventClosed()
               ? `
                 <button
                   class="inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700"
@@ -564,7 +569,9 @@ const ticketsUrl = `${apiBase}/tickets`;
               `
               : ticket.status === "used"
                 ? `<span class="text-xs font-medium text-indigo-700">Ya ingresada</span>`
-                : `<span class="text-xs text-zinc-400">No permitida</span>`;
+                : ticket.status === "paid" && isSelectedEventClosed()
+                  ? `<span class="text-xs text-zinc-400">Evento cerrado</span>`
+                  : `<span class="text-xs text-zinc-400">No permitida</span>`;
 
           return `
             <tr class="align-top hover:bg-zinc-50">
@@ -672,6 +679,11 @@ const ticketsUrl = `${apiBase}/tickets`;
 
       if (ticket.status !== "paid") {
         setStatus("La boleta debe estar pagada antes de registrar ingreso.", "error");
+        return;
+      }
+
+      if (isSelectedEventClosed()) {
+        setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
         return;
       }
 

@@ -435,23 +435,32 @@ const ticketsUrl = `${apiBase}/tickets`;
     const getSelectedEvent = () =>
       currentEvents.find((event) => event.id === selectedEventId) ?? currentEvents[0] ?? null;
 
+    const isSelectedEventClosed = () => getSelectedEvent()?.status === "closed";
+
     const canManageTickets = () =>
       currentUser?.role === "admin" || currentUser?.role === "supervisor";
 
     const isReservableTicket = (ticket: TicketRecord) =>
+      !isSelectedEventClosed() &&
       ["assigned", "available", "reserved"].includes(ticket.status);
 
     const isReservationReleaseableTicket = (ticket: TicketRecord) =>
-      ticket.status === "reserved";
+      !isSelectedEventClosed() && ticket.status === "reserved";
 
     const isSaleableTicket = (ticket: TicketRecord) =>
+      !isSelectedEventClosed() &&
       ["assigned", "available", "reserved"].includes(ticket.status);
 
     const isAssignableTicket = (ticket: TicketRecord) =>
+      !isSelectedEventClosed() &&
       ["assigned", "available", "reserved"].includes(ticket.status);
 
     const isVoidableTicket = (ticket: TicketRecord) => {
-      if (!canManageTickets() || ["used", "void"].includes(ticket.status)) {
+      if (
+        isSelectedEventClosed() ||
+        !canManageTickets() ||
+        ["used", "void"].includes(ticket.status)
+      ) {
         return false;
       }
 
@@ -1335,6 +1344,11 @@ const ticketsUrl = `${apiBase}/tickets`;
           return;
         }
 
+        if (selectedEvent.status === "closed") {
+          setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
+          return;
+        }
+
         const formData = new FormData(form);
         const email = String(formData.get("email") ?? "").trim();
         const notes = String(formData.get("notes") ?? "").trim();
@@ -1499,6 +1513,11 @@ const ticketsUrl = `${apiBase}/tickets`;
 
         if (!eventsUrl || !selectedEvent) {
           setStatus("Selecciona un evento antes de crear boletas.", "error");
+          return;
+        }
+
+        if (selectedEvent.status === "closed") {
+          setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
           return;
         }
 

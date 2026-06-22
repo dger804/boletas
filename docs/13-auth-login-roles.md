@@ -174,6 +174,8 @@ El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/su
 
 El corte operativo de Astro usa `GET /api/events/:eventId/closeout` y queda reservado para `supervisor` y `admin`. Es una lectura calculada del estado actual del evento; todavia no bloquea ventas ni cambia el estado del evento.
 
+Si un `admin` marca un evento como `closed`, la API deja disponibles las consultas historicas, dashboard, corte y auditoria, pero bloquea cambios operativos: crear responsables, crear lotes, asignar, reservar, liberar reserva, vender, anular, validar pagos y registrar ingreso. Para hacer ajustes posteriores, un `admin` debe reabrir el evento cambiando su `status` a `active`.
+
 En la interfaz del dashboard, el rol tambien reduce controles visibles:
 
 ```txt

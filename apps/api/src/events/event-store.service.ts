@@ -13,6 +13,7 @@ import type {
   EventCloseout,
   EventDashboard,
   EventRecord,
+  EventStatus,
   PaymentEvidence,
   PublicEventDashboard,
   TicketRecord,
@@ -422,7 +423,9 @@ export class EventStoreService {
     actor?: AuthenticatedUser
   ) {
     if (this.prisma?.isConfigured()) {
-      await this.findPrismaEvent(eventId);
+      const event = await this.findPrismaEvent(eventId);
+
+      this.assertEventAcceptsOperations(event.status);
 
       const distributor = await this.prisma.distributor.create({
         data: {
@@ -448,7 +451,9 @@ export class EventStoreService {
       return this.toDistributorRecord(distributor);
     }
 
-    this.findEvent(eventId);
+    const event = this.findEvent(eventId);
+
+    this.assertEventAcceptsOperations(event.status);
 
     const distributor: Distributor = {
       id: randomUUID(),
@@ -486,7 +491,9 @@ export class EventStoreService {
     actor?: AuthenticatedUser
   ) {
     if (this.prisma?.isConfigured()) {
-      await this.findPrismaEvent(eventId);
+      const event = await this.findPrismaEvent(eventId);
+
+      this.assertEventAcceptsOperations(event.status);
 
       if (dto.quantity <= 0) {
         throw new BadRequestException("quantity must be greater than zero");
@@ -530,7 +537,9 @@ export class EventStoreService {
       return tickets.map(this.toTicketRecord);
     }
 
-    this.findEvent(eventId);
+    const event = this.findEvent(eventId);
+
+    this.assertEventAcceptsOperations(event.status);
 
     if (dto.quantity <= 0) {
       throw new BadRequestException("quantity must be greater than zero");
@@ -600,6 +609,10 @@ export class EventStoreService {
         throw new BadRequestException("ticket and distributor belong to different events");
       }
 
+      const event = await this.findPrismaEvent(ticket.eventId);
+
+      this.assertEventAcceptsOperations(event.status);
+
       const updated = await this.prisma.ticket.update({
         data: {
           distributorId: distributor.id,
@@ -646,6 +659,10 @@ export class EventStoreService {
       throw new BadRequestException("ticket and distributor belong to different events");
     }
 
+    const event = this.findEvent(ticket.eventId);
+
+    this.assertEventAcceptsOperations(event.status);
+
     ticket.distributorId = distributor.id;
     ticket.recipientName = dto.recipientName;
     ticket.notes = dto.notes ?? ticket.notes;
@@ -663,6 +680,7 @@ export class EventStoreService {
       const ticket = await this.findPrismaTicket(ticketId);
 
       this.assertTicketCanBeReserved(ticket.status);
+      await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const updated = await this.prisma.ticket.update({
         data: {
@@ -703,6 +721,7 @@ export class EventStoreService {
     const ticket = this.findTicket(ticketId);
 
     this.assertTicketCanBeReserved(ticket.status);
+    this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     ticket.status = "reserved";
     ticket.recipientName = dto.recipientName ?? ticket.recipientName;
@@ -720,6 +739,7 @@ export class EventStoreService {
       const ticket = await this.findPrismaTicket(ticketId);
 
       this.assertTicketCanReleaseReservation(ticket.status);
+      await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const nextStatus = ticket.distributorId ? "assigned" : "available";
       const updated = await this.prisma.ticket.update({
@@ -761,6 +781,7 @@ export class EventStoreService {
     const ticket = this.findTicket(ticketId);
 
     this.assertTicketCanReleaseReservation(ticket.status);
+    this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     ticket.status = ticket.distributorId ? "assigned" : "available";
     ticket.recipientName = undefined;
@@ -780,6 +801,8 @@ export class EventStoreService {
       if (["paid", "sold", "used", "void"].includes(ticket.status)) {
         throw new BadRequestException("ticket cannot be sold in its current status");
       }
+
+      await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const capitalizationAmount =
         dto.capitalizationAmount ?? ticket.capitalizationAmount;
@@ -841,6 +864,8 @@ export class EventStoreService {
       throw new BadRequestException("ticket cannot be sold in its current status");
     }
 
+    this.assertTicketEventAcceptsOperations(ticket.eventId);
+
     ticket.status = "sold";
     ticket.buyerName = dto.buyerName;
     ticket.buyerPhone = dto.buyerPhone;
@@ -881,6 +906,8 @@ export class EventStoreService {
       if (ticket.status === "void") {
         return this.toTicketRecord(ticket);
       }
+
+      await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const notes = this.appendVoidReason(ticket.notes, dto.reason);
       const reviewedAt = new Date();
@@ -931,6 +958,8 @@ export class EventStoreService {
       return ticket;
     }
 
+    this.assertTicketEventAcceptsOperations(ticket.eventId);
+
     ticket.status = "void";
     ticket.notes = this.appendVoidReason(ticket.notes, dto.reason) ?? ticket.notes;
     const reviewedAt = now();
@@ -961,6 +990,8 @@ export class EventStoreService {
       if (ticket.status === "used") {
         return this.toTicketRecord(ticket);
       }
+
+      await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       if (ticket.status !== "paid") {
         throw new BadRequestException("only paid tickets can be checked in");
@@ -997,6 +1028,8 @@ export class EventStoreService {
     if (ticket.status === "used") {
       return ticket;
     }
+
+    this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     if (ticket.status !== "paid") {
       throw new BadRequestException("only paid tickets can be checked in");
@@ -1073,6 +1106,7 @@ export class EventStoreService {
       }
 
       this.assertPaymentCanBeReviewed(payment.status, payment.ticket.status, dto.status);
+      await this.assertPrismaTicketEventAcceptsOperations(payment.eventId);
 
       const reviewedAt = new Date();
       const verified = await this.prisma.$transaction(async (tx) => {
@@ -1134,6 +1168,7 @@ export class EventStoreService {
     const ticket = this.findTicket(payment.ticketId);
 
     this.assertPaymentCanBeReviewed(payment.status, ticket.status, dto.status);
+    this.assertTicketEventAcceptsOperations(payment.eventId);
 
     payment.status = dto.status;
     payment.reviewedAt = now();
@@ -1289,6 +1324,24 @@ export class EventStoreService {
     };
 
     return details[status];
+  }
+
+  private assertEventAcceptsOperations(status: EventStatus) {
+    if (status === "closed") {
+      throw new BadRequestException("closed events do not accept operational changes");
+    }
+  }
+
+  private assertTicketEventAcceptsOperations(eventId: string) {
+    const event = this.findEvent(eventId);
+
+    this.assertEventAcceptsOperations(event.status);
+  }
+
+  private async assertPrismaTicketEventAcceptsOperations(eventId: string) {
+    const event = await this.findPrismaEvent(eventId);
+
+    this.assertEventAcceptsOperations(event.status);
   }
 
   private assertTicketCanBeAssigned(status: TicketStatus) {

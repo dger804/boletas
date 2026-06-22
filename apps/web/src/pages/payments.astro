@@ -394,6 +394,11 @@ const paymentsUrl = `${apiBase}/payments`;
     const getSelectedPayment = () =>
       currentPayments.find((payment) => payment.id === selectedPaymentId) ?? null;
 
+    const getSelectedEvent = () =>
+      currentEvents.find((event) => event.id === selectedEventId) ?? currentEvents[0] ?? null;
+
+    const isSelectedEventClosed = () => getSelectedEvent()?.status === "closed";
+
     const updateSelectedEvent = (eventId: string) => {
       selectedEventId = eventId;
       const selector = document.querySelector<HTMLSelectElement>("[data-event-selector]");
@@ -466,7 +471,8 @@ const paymentsUrl = `${apiBase}/payments`;
       }
 
       if (submitButton) {
-        submitButton.disabled = !payment || payment.status !== "pending";
+        submitButton.disabled =
+          !payment || payment.status !== "pending" || isSelectedEventClosed();
       }
     };
 
@@ -480,6 +486,11 @@ const paymentsUrl = `${apiBase}/payments`;
 
       if (payment.status !== "pending") {
         setStatus("Esta evidencia ya fue revisada.", "error");
+        return;
+      }
+
+      if (isSelectedEventClosed()) {
+        setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
         return;
       }
 
@@ -557,7 +568,7 @@ const paymentsUrl = `${apiBase}/payments`;
             `
             : `<span class="text-sm text-zinc-400">Sin archivo</span>`;
           const actions =
-            payment.status === "pending"
+            payment.status === "pending" && !isSelectedEventClosed()
               ? `
                 <div class="flex justify-end gap-2">
                   <button
@@ -578,7 +589,11 @@ const paymentsUrl = `${apiBase}/payments`;
                   </button>
                 </div>
               `
-              : `<span class="text-xs text-zinc-400">${escapeHtml(payment.reviewedBy ?? "Revisado")}</span>`;
+              : `<span class="text-xs text-zinc-400">${escapeHtml(
+                payment.status === "pending" && isSelectedEventClosed()
+                  ? "Evento cerrado"
+                  : payment.reviewedBy ?? "Revisado"
+              )}</span>`;
 
           return `
             <tr class="align-top hover:bg-zinc-50">
@@ -743,6 +758,11 @@ const paymentsUrl = `${apiBase}/payments`;
 
         if (payment.status !== "pending") {
           setStatus("Esta evidencia ya fue revisada.", "error");
+          return;
+        }
+
+        if (isSelectedEventClosed()) {
+          setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
           return;
         }
 

@@ -80,6 +80,8 @@ El endpoint completo `GET /api/events/:eventId/dashboard` queda protegido para `
 
 `GET /api/payments` queda protegido para `supervisor` y `admin` y devuelve cada evidencia con resumen de la boleta asociada (`ticketCode`, comprador, telefono y estado) cuando existe relacion disponible. Ese contexto no se usa en endpoints publicos sanitizados.
 
+Cuando un evento queda en estado `closed`, la API mantiene las lecturas disponibles pero bloquea cambios operativos: crear responsables, crear lotes, asignar, reservar, liberar reserva, vender, anular, validar pagos y registrar ingreso. Un `admin` puede reabrirlo desde `PATCH /api/events/:eventId` cambiando `status` a `active`.
+
 `PATCH /api/tickets/:ticketId/check-in` queda disponible para `regular`, `supervisor` y `admin`. Solo permite registrar ingreso sobre boletas `paid`; al hacerlo cambia la boleta a `used`, registra `usedAt` y guarda `checkedInBy`. La pantalla estatica `/check-in` consume `GET /api/tickets?eventId=...` y este endpoint para operar entrada por evento.
 
 `PATCH /api/tickets/:ticketId/reserve` queda disponible para `regular`, `supervisor` y `admin`. Permite apartar boletas `available`, `assigned` o `reserved` antes de registrar venta. `PATCH /api/tickets/:ticketId/release` libera una boleta `reserved` y la devuelve a `assigned` si tenia responsable o a `available` si no lo tenia.

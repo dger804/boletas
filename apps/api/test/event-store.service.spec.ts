@@ -367,6 +367,9 @@ describe("EventStoreService", () => {
     const create = jest.fn().mockResolvedValue({});
     const prisma = {
       auditLog: { create },
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: "evt_db", status: "active" })
+      },
       isConfigured: () => true,
       ticket: { findUnique, update }
     } as unknown as PrismaService;
@@ -525,6 +528,9 @@ describe("EventStoreService", () => {
     const prisma = {
       $transaction: transaction,
       auditLog: { create },
+      event: {
+        findUnique: jest.fn().mockResolvedValue({ id: "evt_db", status: "active" })
+      },
       isConfigured: () => true,
       paymentEvidence: { updateMany },
       ticket: { findUnique, update }
@@ -711,6 +717,82 @@ describe("EventStoreService", () => {
     await expect(store.releaseTicketReservation(ticket.id)).rejects.toThrow(
       "only reserved tickets can be released"
     );
+  });
+
+  it("blocks operational ticket changes when the event is closed", async () => {
+    const store = new EventStoreService();
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 1
+    });
+    const availableTicket = tickets[0];
+    if (!availableTicket) {
+      throw new Error("available ticket was not created");
+    }
+
+    await store.updateEvent("evt_demo", { status: "closed" });
+
+    await expect(
+      store.createTicketBatch("evt_demo", {
+        price: 90000,
+        quantity: 1
+      })
+    ).rejects.toThrow("closed events do not accept operational changes");
+
+    await expect(
+      store.registerSale(availableTicket.id, {
+        amount: 90000,
+        buyerName: "Comprador Cerrado",
+        method: "cash"
+      })
+    ).rejects.toThrow("closed events do not accept operational changes");
+    await expect(
+      store.reserveTicket(availableTicket.id, {
+        recipientName: "Reserva Cerrada"
+      })
+    ).rejects.toThrow("closed events do not accept operational changes");
+  });
+
+  it("blocks payment verification and check-in when the event is closed", async () => {
+    const store = new EventStoreService();
+    const tickets = await store.createTicketBatch("evt_demo", {
+      price: 90000,
+      quantity: 2
+    });
+    const pendingTicket = tickets[0];
+    const paidTicket = tickets[1];
+    if (!pendingTicket || !paidTicket) {
+      throw new Error("tickets were not created");
+    }
+
+    const pendingSale = await store.registerSale(pendingTicket.id, {
+      amount: 90000,
+      buyerName: "Comprador Pendiente",
+      method: "transfer"
+    });
+    const paidSale = await store.registerSale(paidTicket.id, {
+      amount: 90000,
+      buyerName: "Comprador Pagado",
+      method: "cash"
+    });
+    await store.verifyPayment(paidSale.payment.id, {
+      reviewedBy: "Admin Test",
+      status: "approved"
+    });
+
+    await store.updateEvent("evt_demo", { status: "closed" });
+
+    await expect(
+      store.verifyPayment(pendingSale.payment.id, {
+        reviewedBy: "Supervisor Test",
+        status: "approved"
+      })
+    ).rejects.toThrow("closed events do not accept operational changes");
+    await expect(
+      store.checkInTicket(paidTicket.id, {
+        checkedInBy: "Porteria Test"
+      })
+    ).rejects.toThrow("closed events do not accept operational changes");
   });
 
   it("does not allow registering a sale twice for the same ticket", async () => {
