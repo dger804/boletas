@@ -17,6 +17,9 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 
+# portable local exports
+_portable/
+
 # os / editor
 .DS_Store
 Thumbs.db

@@ -51,6 +51,7 @@ pnpm start
 15. Conectar el dashboard frontend al endpoint publico sanitizado.
 16. Leer los commits en orden con `git log --oneline --reverse`.
 17. Ejecutar localmente con `pnpm dev`.
+18. Migrar el proyecto y las skills a otro equipo con `docs/14-portabilidad-proyecto-y-skills.md`.
 
 ## Estado inicial
 
