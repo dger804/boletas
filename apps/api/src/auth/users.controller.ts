@@ -10,34 +10,33 @@ import {
   Req,
   UseGuards
 } from "@nestjs/common";
-import { AdminTokenGuard } from "./admin-token.guard";
-import { AuthTokenGuard, type RequestWithUser } from "./auth-token.guard";
+import type { RequestWithUser } from "./auth-token.guard";
 import { CreateUserDto, UpdateUserDto } from "./dto";
+import { Roles } from "./roles.decorator";
+import { RolesGuard } from "./roles.guard";
 import { UsersService } from "./users.service";
 
 @Controller("auth/users")
+@UseGuards(RolesGuard)
+@Roles("admin")
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
-  @UseGuards(AdminTokenGuard)
   @Get()
   async listUsers() {
     return { users: await this.users.listUsers() };
   }
 
-  @UseGuards(AdminTokenGuard)
   @Post()
   createUser(@Body() dto: CreateUserDto) {
     return this.users.createUser(dto);
   }
 
-  @UseGuards(AdminTokenGuard)
   @Patch(":id")
   updateUser(@Param("id") id: string, @Body() dto: UpdateUserDto) {
     return this.users.updateUser(id, dto);
   }
 
-  @UseGuards(AuthTokenGuard)
   @Delete(":id")
   deleteUser(@Param("id") id: string, @Req() request: RequestWithUser) {
     if (request.user?.role !== "admin") {

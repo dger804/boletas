@@ -179,7 +179,6 @@ En Render, el servicio `boletas-api` debe conservar:
 ```txt
 CORS_ORIGIN=https://boletas.corporacionceer.com
 DATABASE_URL=mysql://usuario:password@host:3306/base
-ADMIN_API_TOKEN=<secreto privado>
 AUTH_TOKEN_SECRET=<secreto privado largo>
 AUTH_TOKEN_TTL_SECONDS=28800
 ```

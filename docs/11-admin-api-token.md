@@ -1,31 +1,26 @@
-# Token administrativo temporal
+# Token administrativo temporal retirado
 
-La API ya usa MySQL real en Render. Los endpoints administrativos empezaron protegidos con un token temporal.
+La API ya usa MySQL real en Render. Los endpoints administrativos empezaron protegidos con un token temporal, pero esa transicion ya termino.
 
-Desde la etapa de login, este token queda como puente de transicion. El camino recomendado para nuevas pantallas administrativas es iniciar sesion en `/api/auth/login` y usar `Authorization: Bearer <token_de_sesion>`. Ver `docs/13-auth-login-roles.md`.
+El camino vigente es iniciar sesion en `/api/auth/login` y usar `Authorization: Bearer <token_de_sesion>`. Ver `docs/13-auth-login-roles.md`.
 
-## Variable requerida en Render
+## Estado actual
 
-En el servicio `boletas-api`:
-
-```txt
-Key: ADMIN_API_TOKEN
-Value: generar un secreto largo y privado
-```
-
-No guardar el valor real en GitHub, README, docs ni `.env.example`.
+`ADMIN_API_TOKEN` ya no debe configurarse en Render ni en `.env.example`. Si queda creado como secreto antiguo en Render, se puede eliminar despues de confirmar que el login funciona con un usuario `admin`.
 
 ## Endpoints protegidos
 
-El token se exige en:
+La sesion de usuario se exige en:
 
 ```txt
 /api/events
 /api/tickets
 /api/payments
+/api/audit
+/api/auth/users
 ```
 
-Incluye lectura y escritura porque estos endpoints pueden exponer o modificar datos persistentes. Desde la autorizacion por roles, una sesion de usuario tambien puede llamar estos endpoints cuando su rol lo permite. El token temporal se interpreta como rol `admin`.
+Incluye lectura y escritura porque estos endpoints pueden exponer o modificar datos persistentes. La autorizacion depende del rol vigente del usuario en base de datos.
 
 La ruta de salud sigue publica:
 
@@ -36,36 +31,27 @@ La ruta de salud sigue publica:
 
 ## Como llamar la API
 
-Opcion recomendada:
+Primero inicia sesion:
 
 ```bash
-curl -H "x-admin-token: TU_TOKEN" https://api-boletas.corporacionceer.com/api/events
+curl -H "Content-Type: application/json" \
+  -d '{"email":"admin@tu-dominio.com","password":"TU_PASSWORD"}' \
+  https://api-boletas.corporacionceer.com/api/auth/login
 ```
 
-Tambien se acepta el token temporal como bearer:
+Luego usa el token devuelto:
 
 ```bash
-curl -H "Authorization: Bearer TU_TOKEN" https://api-boletas.corporacionceer.com/api/events
+curl -H "Authorization: Bearer TU_TOKEN_DE_SESION" https://api-boletas.corporacionceer.com/api/events
 ```
 
 ## Comportamiento
 
-En produccion:
+En produccion y desarrollo:
 
 - Si se usa una sesion de usuario valida, el permiso depende del rol.
-- Si se usa `ADMIN_API_TOKEN` correcto, la peticion continua como rol `admin`.
-- Si falta sesion/token, responden `401`.
-- Si la sesion existe pero el rol no alcanza, responden `403`.
+- Si falta sesion, la API responde `401`.
+- Si la sesion existe pero el rol no alcanza, la API responde `403`.
+- `x-admin-token` ya no concede permisos.
 
-En desarrollo local, los endpoints operativos nuevos deben probarse con una sesion real. El bypass sin `ADMIN_API_TOKEN` queda limitado a piezas antiguas de transicion y no debe usarse como comportamiento esperado.
-
-## Limite de esta solucion
-
-Este token no reemplaza autenticacion real. Debe retirarse cuando el login y los roles cubran todo el flujo administrativo.
-
-Siguiente etapa de seguridad:
-
-1. Pantalla de login.
-2. Roles aplicados por endpoint y flujo.
-3. Autorizacion por evento, boleta, distribuidor y pago.
-4. Eliminacion del token temporal.
+Siguiente etapa de seguridad: autorizacion mas granular por evento, boleta, distribuidor y pago cuando existan responsables asignados por usuario.

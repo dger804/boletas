@@ -111,7 +111,7 @@ La primera migracion Prisma crea `events`, `distributors`, `tickets`, `payment_e
 
 `EventStoreService` ya usa Prisma cuando `DATABASE_URL` existe. En desarrollo local sin `DATABASE_URL`, conserva un fallback en memoria para no bloquear pruebas y aprendizaje. Ver `docs/10-event-store-prisma.md`.
 
-Los endpoints persistentes de eventos, boletas y pagos quedan protegidos con `ADMIN_API_TOKEN` hasta implementar login y roles. Ver `docs/11-admin-api-token.md`.
+Los endpoints persistentes de eventos, boletas, pagos, auditoria y usuarios quedan protegidos con sesiones de usuario y roles. El `ADMIN_API_TOKEN` temporal ya fue retirado. Ver `docs/11-admin-api-token.md` y `docs/13-auth-login-roles.md`.
 
 La primera base de login y roles ya existe. Usa usuarios en MySQL, tokens firmados con `AUTH_TOKEN_SECRET` y roles `regular`, `supervisor`, `admin`. Durante la transicion, los endpoints administrativos aceptan usuarios `admin` o el token temporal. Ver `docs/13-auth-login-roles.md`.
 
@@ -132,4 +132,4 @@ El corte operativo `GET /api/events/:eventId/closeout` tambien queda reservado p
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
-La siguiente decision tecnica es conectar las acciones operativas reales al token de sesion y completar las pantallas de eventos, boletas, pagos y entrada.
+La siguiente decision tecnica es agregar autorizacion mas granular por evento, boleta, distribuidor y pago cuando el modelo asocie responsables a usuarios.

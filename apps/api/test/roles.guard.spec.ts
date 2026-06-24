@@ -3,16 +3,10 @@ import {
   ForbiddenException,
   UnauthorizedException
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import type { AuthenticatedUser, UserRole } from "@boletas/shared";
 import { AuthService } from "../src/auth/auth.service";
 import { RolesGuard } from "../src/auth/roles.guard";
-
-const createConfig = (values: Record<string, string | undefined>) =>
-  ({
-    get: (key: string) => values[key]
-  }) as ConfigService;
 
 const createReflector = (roles: UserRole[]) =>
   ({
@@ -44,8 +38,7 @@ describe("RolesGuard", () => {
   it("accepts a session whose role is explicitly allowed", async () => {
     const guard = new RolesGuard(
       createReflector(["regular", "supervisor", "admin"]),
-      createAuth(userWithRole("regular")),
-      createConfig({})
+      createAuth(userWithRole("regular"))
     );
 
     await expect(
@@ -56,8 +49,7 @@ describe("RolesGuard", () => {
   it("rejects missing bearer tokens", async () => {
     const guard = new RolesGuard(
       createReflector(["regular"]),
-      createAuth(userWithRole("regular")),
-      createConfig({})
+      createAuth(userWithRole("regular"))
     );
 
     await expect(guard.canActivate(createContext({}))).rejects.toThrow(
@@ -68,8 +60,7 @@ describe("RolesGuard", () => {
   it("rejects sessions without a sufficient role", async () => {
     const guard = new RolesGuard(
       createReflector(["supervisor", "admin"]),
-      createAuth(userWithRole("regular")),
-      createConfig({})
+      createAuth(userWithRole("regular"))
     );
 
     await expect(
@@ -77,35 +68,21 @@ describe("RolesGuard", () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it("accepts the temporary admin token as an admin bridge", async () => {
+  it("rejects legacy admin token headers", async () => {
     const guard = new RolesGuard(
       createReflector(["admin"]),
-      createAuth(userWithRole("regular")),
-      createConfig({ ADMIN_API_TOKEN: "correct-token" })
+      createAuth(userWithRole("regular"))
     );
 
     await expect(
       guard.canActivate(createContext({ "x-admin-token": "correct-token" }))
-    ).resolves.toBe(true);
-  });
-
-  it("rejects the temporary admin token when admin is not allowed", async () => {
-    const guard = new RolesGuard(
-      createReflector(["regular"]),
-      createAuth(userWithRole("regular")),
-      createConfig({ ADMIN_API_TOKEN: "correct-token" })
-    );
-
-    await expect(
-      guard.canActivate(createContext({ "x-admin-token": "correct-token" }))
-    ).rejects.toThrow(ForbiddenException);
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it("fails closed when a controller forgets to declare roles", async () => {
     const guard = new RolesGuard(
       createReflector([]),
-      createAuth(userWithRole("admin")),
-      createConfig({})
+      createAuth(userWithRole("admin"))
     );
 
     await expect(

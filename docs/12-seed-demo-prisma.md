@@ -64,7 +64,7 @@ El valor real debe salir de Render o Hostinger, no del repositorio.
 Ejemplo de verificacion manual:
 
 ```powershell
-$headers = @{ "x-admin-token" = "TU_TOKEN" }
+$headers = @{ Authorization = "Bearer TU_TOKEN_DE_SESION" }
 Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.com/api/events"
 Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.com/api/events/evt_demo/dashboard"
 ```
@@ -88,7 +88,6 @@ En Hostinger, la pagina debe consumir esta ruta desde JavaScript del navegador. 
 
 Despues de validar el seed:
 
-1. Mantener el frontend estatico conectado solo al endpoint publico sanitizado.
-2. Implementar login y roles para reemplazar el token temporal.
-3. Crear vistas operativas que consuman datos completos solo cuando exista autenticacion.
-4. Mover acciones operativas del seed hacia endpoints protegidos por autorizacion real.
+1. Validar las vistas operativas con una sesion real.
+2. Mantener las lecturas publicas conectadas solo al endpoint sanitizado.
+3. Agregar autorizacion mas granular cuando el dominio asocie responsables a usuarios.

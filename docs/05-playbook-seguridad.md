@@ -70,7 +70,7 @@ Reglas:
 - Usar cookies `HttpOnly`, `Secure`, `SameSite=Lax` o `Strict` si se eligen cookies.
 - Definir expiracion y renovacion de sesion.
 - Proteger todos los endpoints excepto salud publica y recursos estaticos.
-- Mientras no exista login real, proteger endpoints persistentes con `ADMIN_API_TOKEN` como control temporal.
+- Proteger endpoints persistentes con sesiones de usuario y roles; `ADMIN_API_TOKEN` fue un control temporal y ya no debe aceptarse.
 
 ### Autorizacion
 

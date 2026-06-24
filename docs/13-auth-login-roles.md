@@ -1,6 +1,6 @@
 # Login y roles iniciales
 
-Esta etapa agrega autenticacion de usuarios sin romper el `ADMIN_API_TOKEN` temporal.
+Esta etapa agrega autenticacion de usuarios y reemplaza el `ADMIN_API_TOKEN` temporal.
 
 ## Objetivo
 
@@ -36,7 +36,7 @@ admin
 - administrar usuarios
 ```
 
-`ADMIN_API_TOKEN` se conserva como puente temporal y se trata como rol `admin` solo en endpoints operativos donde `admin` esta permitido. Para administrar usuarios desde la UI se debe usar una sesion real de usuario `admin`.
+El token temporal ya fue retirado. Para administrar desde API o UI se debe usar una sesion real y vigente de usuario con el rol requerido.
 
 ## Variables en Render
 
@@ -47,7 +47,7 @@ AUTH_TOKEN_SECRET=secreto_largo_aleatorio
 AUTH_TOKEN_TTL_SECONDS=28800
 ```
 
-`AUTH_TOKEN_SECRET` debe ser diferente de `ADMIN_API_TOKEN`.
+`AUTH_TOKEN_SECRET` debe ser un secreto largo y privado, diferente de cualquier secreto historico usado durante la transicion.
 
 No guardar valores reales en GitHub, docs, capturas ni `.env.example`.
 
@@ -135,7 +135,7 @@ $headers = @{ Authorization = "Bearer TU_TOKEN_DE_LOGIN" }
 Invoke-RestMethod -Headers $headers -Uri "https://api-boletas.corporacionceer.com/api/events"
 ```
 
-Durante la transicion, los endpoints operativos siguen aceptando `ADMIN_API_TOKEN` como rol `admin`.
+Los endpoints operativos aceptan sesiones de usuario y aplican permisos por rol.
 
 ## Autorizacion operativa por rol
 
@@ -547,7 +547,7 @@ Cambiar contrasena usa el mismo endpoint `PATCH /api/auth/users/:id`. En la pant
 
 Las respuestas nunca incluyen `password_hash`. La API impide degradar o deshabilitar al ultimo `admin` activo para evitar perder acceso administrativo.
 
-El borrado exige una sesion real de usuario `admin`, no solo `ADMIN_API_TOKEN`, porque la API necesita saber quien actua para impedir que un admin se borre a si mismo. Tambien se bloquea borrar al ultimo `admin` activo.
+El borrado exige una sesion real de usuario `admin`, porque la API necesita saber quien actua para impedir que un admin se borre a si mismo. Tambien se bloquea borrar al ultimo `admin` activo.
 
 Cuando se quiera conservar trazabilidad de una cuenta de prueba o de un usuario que ya no debe entrar, preferir `status=disabled` antes que borrar.
 
@@ -605,4 +605,4 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Retirar `ADMIN_API_TOKEN` cuando el login cubra todo el uso administrativo.
+1. Agregar autorizacion mas granular por evento, boleta, distribuidor y pago cuando el modelo asocie responsables a usuarios.
