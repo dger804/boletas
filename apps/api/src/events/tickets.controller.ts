@@ -28,8 +28,11 @@ export class TicketsController {
 
   @Roles("regular", "supervisor", "admin")
   @Get()
-  listTickets(@Query("eventId") eventId?: string) {
-    return this.store.listTickets(eventId);
+  listTickets(
+    @Query("eventId") eventId: string | undefined,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.listTickets(eventId, request.user);
   }
 
   @Roles("supervisor", "admin")

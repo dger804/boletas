@@ -73,6 +73,7 @@ export class EventStoreService {
     {
       id: "dst_demo_1",
       eventId: "evt_demo",
+      userId: undefined,
       name: "Equipo Comercial",
       phone: "+57 300 000 0000",
       email: "ventas@example.com",
@@ -426,6 +427,7 @@ export class EventStoreService {
       const event = await this.findPrismaEvent(eventId);
 
       this.assertEventAcceptsOperations(event.status);
+      await this.assertPrismaUserCanOwnDistributor(dto.userId);
 
       const distributor = await this.prisma.distributor.create({
         data: {
@@ -433,7 +435,8 @@ export class EventStoreService {
           eventId,
           name: dto.name,
           notes: dto.notes,
-          phone: dto.phone
+          phone: dto.phone,
+          userId: dto.userId
         }
       });
 
@@ -444,7 +447,8 @@ export class EventStoreService {
         entityType: "distributor",
         eventId,
         metadata: {
-          distributorName: distributor.name
+          distributorName: distributor.name,
+          userId: distributor.userId
         }
       });
 
@@ -458,6 +462,7 @@ export class EventStoreService {
     const distributor: Distributor = {
       id: randomUUID(),
       eventId,
+      userId: dto.userId,
       name: dto.name,
       phone: dto.phone,
       email: dto.email,
@@ -567,7 +572,7 @@ export class EventStoreService {
     return tickets;
   }
 
-  async listTickets(eventId?: string) {
+  async listTickets(eventId?: string, actor?: AuthenticatedUser) {
     if (this.prisma?.isConfigured()) {
       const tickets = await this.prisma.ticket.findMany({
         include: {
@@ -581,7 +586,12 @@ export class EventStoreService {
           }
         },
         orderBy: { createdAt: "asc" },
-        where: eventId ? { eventId } : undefined
+        where: {
+          ...(eventId ? { eventId } : {}),
+          ...(this.isRegularActor(actor)
+            ? { distributor: { is: { userId: actor.id } } }
+            : {})
+        }
       });
       return tickets.map(this.toTicketRecord);
     }
@@ -589,7 +599,9 @@ export class EventStoreService {
     const tickets = eventId
       ? this.tickets.filter((ticket) => ticket.eventId === eventId)
       : this.tickets;
-    return tickets.map((ticket) => this.withDistributorContact(ticket));
+    return tickets
+      .filter((ticket) => this.actorCanAccessTicket(ticket, actor))
+      .map((ticket) => this.withDistributorContact(ticket));
   }
 
   async assignTicket(
@@ -680,6 +692,7 @@ export class EventStoreService {
       const ticket = await this.findPrismaTicket(ticketId);
 
       this.assertTicketCanBeReserved(ticket.status);
+      await this.assertActorCanAccessPrismaTicket(ticket, actor);
       await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const updated = await this.prisma.ticket.update({
@@ -721,6 +734,7 @@ export class EventStoreService {
     const ticket = this.findTicket(ticketId);
 
     this.assertTicketCanBeReserved(ticket.status);
+    this.assertActorCanAccessTicket(ticket, actor);
     this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     ticket.status = "reserved";
@@ -739,6 +753,7 @@ export class EventStoreService {
       const ticket = await this.findPrismaTicket(ticketId);
 
       this.assertTicketCanReleaseReservation(ticket.status);
+      await this.assertActorCanAccessPrismaTicket(ticket, actor);
       await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const nextStatus = ticket.distributorId ? "assigned" : "available";
@@ -781,6 +796,7 @@ export class EventStoreService {
     const ticket = this.findTicket(ticketId);
 
     this.assertTicketCanReleaseReservation(ticket.status);
+    this.assertActorCanAccessTicket(ticket, actor);
     this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     ticket.status = ticket.distributorId ? "assigned" : "available";
@@ -802,6 +818,7 @@ export class EventStoreService {
         throw new BadRequestException("ticket cannot be sold in its current status");
       }
 
+      await this.assertActorCanAccessPrismaTicket(ticket, actor);
       await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       const capitalizationAmount =
@@ -864,6 +881,7 @@ export class EventStoreService {
       throw new BadRequestException("ticket cannot be sold in its current status");
     }
 
+    this.assertActorCanAccessTicket(ticket, actor);
     this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     ticket.status = "sold";
@@ -991,6 +1009,7 @@ export class EventStoreService {
         return this.toTicketRecord(ticket);
       }
 
+      await this.assertActorCanAccessPrismaTicket(ticket, actor);
       await this.assertPrismaTicketEventAcceptsOperations(ticket.eventId);
 
       if (ticket.status !== "paid") {
@@ -1029,6 +1048,7 @@ export class EventStoreService {
       return ticket;
     }
 
+    this.assertActorCanAccessTicket(ticket, actor);
     this.assertTicketEventAcceptsOperations(ticket.eventId);
 
     if (ticket.status !== "paid") {
@@ -1412,6 +1432,74 @@ export class EventStoreService {
     return distributor;
   }
 
+  private actorCanAccessTicket(ticket: TicketRecord, actor?: AuthenticatedUser) {
+    if (!this.isRegularActor(actor)) {
+      return true;
+    }
+
+    if (!ticket.distributorId) {
+      return false;
+    }
+
+    const distributor = this.distributors.find(
+      (item) => item.id === ticket.distributorId
+    );
+
+    return distributor?.userId === actor.id;
+  }
+
+  private assertActorCanAccessTicket(
+    ticket: TicketRecord,
+    actor?: AuthenticatedUser
+  ) {
+    if (!this.actorCanAccessTicket(ticket, actor)) {
+      throw new ForbiddenException("ticket is not assigned to this user");
+    }
+  }
+
+  private async assertActorCanAccessPrismaTicket(
+    ticket: Pick<PrismaTicket, "distributorId">,
+    actor?: AuthenticatedUser
+  ) {
+    if (!this.isRegularActor(actor)) {
+      return;
+    }
+
+    if (!ticket.distributorId) {
+      throw new ForbiddenException("ticket is not assigned to this user");
+    }
+
+    const distributor = await this.prisma!.distributor.findUnique({
+      select: { userId: true },
+      where: { id: ticket.distributorId }
+    });
+
+    if (distributor?.userId !== actor.id) {
+      throw new ForbiddenException("ticket is not assigned to this user");
+    }
+  }
+
+  private async assertPrismaUserCanOwnDistributor(userId?: string) {
+    if (!userId) {
+      return;
+    }
+
+    const user = await this.prisma!.appUser.findUnique({
+      select: { status: true },
+      where: { id: userId }
+    });
+
+    if (!user || user.status !== "active") {
+      throw new BadRequestException("distributor user must be active");
+    }
+  }
+
+  private isRegularActor(
+    actor?: AuthenticatedUser
+  ): actor is AuthenticatedUser & { role: "regular" } {
+    return actor?.role === "regular";
+  }
+
   private async findPrismaEvent(eventId: string) {
     const event = await this.prisma!.event.findUnique({
       where: { id: eventId }
@@ -1464,6 +1552,7 @@ export class EventStoreService {
     return {
       id: distributor.id,
       eventId: distributor.eventId,
+      userId: distributor.userId ?? undefined,
       name: distributor.name,
       phone: distributor.phone,
       email: distributor.email ?? undefined,

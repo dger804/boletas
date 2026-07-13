@@ -21,6 +21,7 @@ regular
 - leer eventos, tablero resumido protegido y boletas
 - registrar venta
 - registrar ingreso/check-in
+- cuando una boleta esta asignada a un responsable vinculado a una cuenta, solo opera sus propias boletas
 
 supervisor
 - todo lo de regular
@@ -286,6 +287,10 @@ GET  /api/events/:eventId/distributors
 POST /api/events/:eventId/distributors
 ```
 
+El responsable puede quedar vinculado a una cuenta de usuario con `userId`. Este campo es opcional para conservar datos historicos y responsables externos, pero habilita autorizacion granular: un usuario `regular` solo lista, reserva, libera reserva, vende o registra ingreso sobre boletas asignadas a un responsable cuyo `userId` sea su propia cuenta.
+
+Desde la UI, los usuarios `admin` ven un selector de cuenta activa al crear responsables. Los `supervisor` pueden crear responsables sin vincular cuenta, pero no pueden listar ni administrar usuarios.
+
 Desde la tabla de inventario, las boletas `available`, `assigned` o `reserved` muestran la accion `Asignar`. Esa accion prepara el formulario lateral para escoger responsable y guardar:
 
 ```txt
@@ -293,7 +298,7 @@ PATCH /api/tickets/:ticketId/assign
 Authorization: Bearer <token_supervisor_o_admin>
 ```
 
-La API bloquea reasignar boletas `sold`, `paid`, `used` o `void`, porque cambiar responsable en esos estados podria borrar trazabilidad operativa de ventas, pagos o ingreso.
+La API bloquea reasignar boletas `sold`, `paid`, `used` o `void`, porque cambiar responsable en esos estados podria borrar trazabilidad operativa de ventas, pagos o ingreso. Para que un usuario `regular` opere una boleta, primero debe estar asignada a un responsable vinculado con su cuenta.
 
 ## Reservar boletas
 
@@ -605,4 +610,4 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Agregar autorizacion mas granular por evento, boleta, distribuidor y pago cuando el modelo asocie responsables a usuarios.
+1. Extender la autorizacion granular a reportes de pago y cortes cuando existan responsables vinculados suficientes para separar recaudos por usuario.

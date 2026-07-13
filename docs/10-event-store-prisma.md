@@ -119,6 +119,6 @@ Si `/api/events` responde `[]`, no es error: significa que la base real esta vac
 
 ## Pendientes
 
-1. Agregar autorizacion mas granular por evento, boleta, distribuidor y pago.
-2. Asociar responsables operativos con usuarios cuando el dominio lo requiera.
+1. Extender la autorizacion granular a reportes de pago, cortes y vistas de recaudo.
+2. Definir si cada usuario `regular` debe tener exactamente un responsable por evento o puede manejar varios.
 3. Agregar tests de integracion con una base de datos temporal.

@@ -64,6 +64,7 @@ export interface EventRecord {
 export interface Distributor {
   id: string;
   eventId: string;
+  userId?: string;
   name: string;
   phone: string;
   email?: string;

@@ -71,6 +71,7 @@ Reglas:
 - Definir expiracion y renovacion de sesion.
 - Proteger todos los endpoints excepto salud publica y recursos estaticos.
 - Proteger endpoints persistentes con sesiones de usuario y roles; `ADMIN_API_TOKEN` fue un control temporal y ya no debe aceptarse.
+- Vincular responsables con usuarios cuando un operador `regular` deba quedar limitado a sus propias boletas.
 
 ### Autorizacion
 

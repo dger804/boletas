@@ -78,6 +78,11 @@ export class UpdateEventDto {
 }
 
 export class CreateDistributorDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(36)
+  userId?: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)

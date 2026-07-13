@@ -132,4 +132,6 @@ El corte operativo `GET /api/events/:eventId/closeout` tambien queda reservado p
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
-La siguiente decision tecnica es agregar autorizacion mas granular por evento, boleta, distribuidor y pago cuando el modelo asocie responsables a usuarios.
+La autorizacion granular inicial vincula responsables (`distributors.user_id`) con usuarios. Con ese vinculo, los usuarios `regular` solo operan boletas asignadas a su responsable; `supervisor` y `admin` conservan visibilidad completa.
+
+La siguiente decision tecnica es extender esa separacion a reportes de pago, cortes y vistas de recaudo por usuario/responsable.

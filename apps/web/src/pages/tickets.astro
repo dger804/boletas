@@ -18,6 +18,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? "/api";
 const authMeUrl = `${apiBase}/auth/me`;
 const eventsUrl = `${apiBase}/events`;
 const ticketsUrl = `${apiBase}/tickets`;
+const usersUrl = `${apiBase}/auth/users`;
 ---
 
 <BaseLayout title="Boletas | Inventario">
@@ -26,6 +27,7 @@ const ticketsUrl = `${apiBase}/tickets`;
     data-auth-me-url={authMeUrl}
     data-events-url={eventsUrl}
     data-tickets-url={ticketsUrl}
+    data-users-url={usersUrl}
   ></span>
   <script>
     type EventStatus = "draft" | "active" | "closed";
@@ -47,6 +49,10 @@ const ticketsUrl = `${apiBase}/tickets`;
       role: UserRole;
     }
 
+    interface ManagedUser extends StoredUser {
+      status: "active" | "disabled";
+    }
+
     interface EventRecord {
       id: string;
       name: string;
@@ -60,6 +66,7 @@ const ticketsUrl = `${apiBase}/tickets`;
     interface DistributorRecord {
       id: string;
       eventId: string;
+      userId?: string;
       name: string;
       phone: string;
       email?: string;
@@ -139,6 +146,7 @@ const ticketsUrl = `${apiBase}/tickets`;
     let currentUser: StoredUser | null = null;
     let currentEvents: EventRecord[] = [];
     let currentDistributors: DistributorRecord[] = [];
+    let currentAssignableUsers: ManagedUser[] = [];
     let currentTickets: TicketRecord[] = [];
     let selectedTicketId = "";
     let selectedEventId = new URLSearchParams(window.location.search)
@@ -180,7 +188,8 @@ const ticketsUrl = `${apiBase}/tickets`;
       return {
         authMeUrl: resolveApiUrl(config?.dataset.authMeUrl),
         eventsUrl: resolveApiUrl(config?.dataset.eventsUrl),
-        ticketsUrl: resolveApiUrl(config?.dataset.ticketsUrl)
+        ticketsUrl: resolveApiUrl(config?.dataset.ticketsUrl),
+        usersUrl: resolveApiUrl(config?.dataset.usersUrl)
       };
     };
 
@@ -198,6 +207,16 @@ const ticketsUrl = `${apiBase}/tickets`;
         typeof user.role === "string" &&
         allowedRoles.has(user.role)
       );
+    };
+
+    const isManagedUser = (value: unknown): value is ManagedUser => {
+      if (!isStoredUser(value) || typeof value !== "object") {
+        return false;
+      }
+
+      const user = value as Partial<ManagedUser>;
+
+      return user.status === "active" || user.status === "disabled";
     };
 
     const isEventRecord = (value: unknown): value is EventRecord => {
@@ -231,6 +250,7 @@ const ticketsUrl = `${apiBase}/tickets`;
       return (
         typeof distributor.id === "string" &&
         typeof distributor.eventId === "string" &&
+        (distributor.userId === undefined || typeof distributor.userId === "string") &&
         typeof distributor.name === "string" &&
         typeof distributor.phone === "string" &&
         typeof distributor.createdAt === "string" &&
@@ -331,6 +351,22 @@ const ticketsUrl = `${apiBase}/tickets`;
       document.querySelectorAll<HTMLElement>("[data-manager-only]").forEach((element) => {
         element.classList.toggle("hidden", !["admin", "supervisor"].includes(user.role));
       });
+    };
+
+    const renderAssignableUsers = () => {
+      const selector = document.querySelector<HTMLSelectElement>("[data-distributor-user]");
+
+      if (!selector) {
+        return;
+      }
+
+      selector.innerHTML = [
+        `<option value="">Sin cuenta vinculada</option>`,
+        ...currentAssignableUsers.map(
+          (user) =>
+            `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} - ${escapeHtml(roleLabels[user.role])}</option>`
+        )
+      ].join("");
     };
 
     const bindLogout = () => {
@@ -615,6 +651,11 @@ const ticketsUrl = `${apiBase}/tickets`;
               <p class="mt-1 truncate text-xs text-zinc-500">
                 ${escapeHtml(distributor.phone)}
               </p>
+              ${
+                distributor.userId
+                  ? `<p class="mt-1 truncate text-[11px] uppercase text-zinc-500">Cuenta vinculada</p>`
+                  : ""
+              }
             </li>
           `
         )
@@ -1136,6 +1177,22 @@ const ticketsUrl = `${apiBase}/tickets`;
       updateAssignmentPanel();
     };
 
+    const loadAssignableUsers = async () => {
+      const { usersUrl } = getConfig();
+
+      if (currentUser?.role !== "admin" || !usersUrl) {
+        currentAssignableUsers = [];
+        renderAssignableUsers();
+        return;
+      }
+
+      const payload = await requestJson<{ users?: unknown[] }>(usersUrl);
+      currentAssignableUsers = Array.isArray(payload.users)
+        ? payload.users.filter(isManagedUser).filter((user) => user.status === "active")
+        : [];
+      renderAssignableUsers();
+    };
+
     const loadTickets = async () => {
       const { ticketsUrl } = getConfig();
 
@@ -1352,11 +1409,13 @@ const ticketsUrl = `${apiBase}/tickets`;
         const formData = new FormData(form);
         const email = String(formData.get("email") ?? "").trim();
         const notes = String(formData.get("notes") ?? "").trim();
+        const userId = String(formData.get("userId") ?? "").trim();
         const payload = {
           name: String(formData.get("name") ?? "").trim(),
           phone: String(formData.get("phone") ?? "").trim(),
           ...(email ? { email } : {}),
-          ...(notes ? { notes } : {})
+          ...(notes ? { notes } : {}),
+          ...(currentUser?.role === "admin" && userId ? { userId } : {})
         };
 
         submitButton?.setAttribute("disabled", "true");
@@ -1643,6 +1702,7 @@ const ticketsUrl = `${apiBase}/tickets`;
             sessionStorage.setItem("boletas.auth.user", JSON.stringify(apiUser));
             renderUser(apiUser);
             renderAdminOnly(apiUser);
+            void loadAssignableUsers();
             void loadEvents();
           })
           .catch(() => {
@@ -1990,6 +2050,17 @@ const ticketsUrl = `${apiBase}/tickets`;
                     name="email"
                     type="email"
                   />
+                </label>
+
+                <label class="hidden grid gap-2" data-admin-only>
+                  <span class="text-sm font-medium text-zinc-700">Cuenta vinculada</span>
+                  <select
+                    class="h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-500"
+                    data-distributor-user
+                    name="userId"
+                  >
+                    <option value="">Sin cuenta vinculada</option>
+                  </select>
                 </label>
 
                 <label class="grid gap-2">

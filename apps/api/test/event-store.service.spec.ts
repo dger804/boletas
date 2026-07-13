@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import type { AuthenticatedUser } from "@boletas/shared";
 import { PrismaService } from "../src/database/prisma.service";
 import { EventStoreService } from "../src/events/event-store.service";
@@ -369,6 +369,9 @@ describe("EventStoreService", () => {
       auditLog: { create },
       event: {
         findUnique: jest.fn().mockResolvedValue({ id: "evt_db", status: "active" })
+      },
+      distributor: {
+        findUnique: jest.fn().mockResolvedValue({ userId: "usr_porteria" })
       },
       isConfigured: () => true,
       ticket: { findUnique, update }
@@ -847,5 +850,82 @@ describe("EventStoreService", () => {
         distributorId: distributor.id
       })
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("limits regular users to tickets assigned to their linked distributor", async () => {
+    const store = new EventStoreService();
+    const regularUser: AuthenticatedUser = {
+      email: "regular@example.com",
+      id: "usr_regular",
+      name: "Usuario Regular",
+      role: "regular"
+    };
+    const event = await store.createEvent({
+      date: "2026-08-01T20:00:00.000Z",
+      expectedAttendees: 50,
+      name: "Evento Granular",
+      status: "active",
+      venue: "Auditorio Test"
+    });
+    const ownDistributor = await store.addDistributor(event.id, {
+      name: "Responsable Propio",
+      phone: "+57 300 000 0001",
+      userId: regularUser.id
+    });
+    const otherDistributor = await store.addDistributor(event.id, {
+      name: "Responsable Otro",
+      phone: "+57 300 000 0002",
+      userId: "usr_other"
+    });
+    const tickets = await store.createTicketBatch(event.id, {
+      price: 90000,
+      quantity: 2
+    });
+    const ownTicket = tickets[0];
+    const otherTicket = tickets[1];
+    if (!ownTicket || !otherTicket) {
+      throw new Error("tickets were not created");
+    }
+
+    await store.assignTicket(ownTicket.id, {
+      distributorId: ownDistributor.id
+    });
+    await store.assignTicket(otherTicket.id, {
+      distributorId: otherDistributor.id
+    });
+
+    await expect(store.listTickets(event.id, regularUser)).resolves.toMatchObject([
+      {
+        distributorId: ownDistributor.id,
+        id: ownTicket.id
+      }
+    ]);
+    await expect(
+      store.registerSale(
+        otherTicket.id,
+        {
+          amount: 90000,
+          buyerName: "Comprador Otro",
+          method: "cash"
+        },
+        regularUser
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      store.registerSale(
+        ownTicket.id,
+        {
+          amount: 90000,
+          buyerName: "Comprador Propio",
+          method: "cash"
+        },
+        regularUser
+      )
+    ).resolves.toMatchObject({
+      ticket: {
+        id: ownTicket.id,
+        status: "sold"
+      }
+    });
   });
 });

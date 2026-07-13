@@ -13,6 +13,8 @@ Permite validar:
 - evidencias de pago aprobadas y pendientes;
 - check-in de una boleta usada.
 
+Los responsables demo no quedan vinculados a usuarios reales. Para probar autorizacion granular con un usuario `regular`, crea o edita un responsable desde `/tickets` con una sesion `admin` y asignale la cuenta activa correspondiente.
+
 ## Datos creados
 
 El seed usa ids estables y es idempotente:
