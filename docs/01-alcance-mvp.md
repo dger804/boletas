@@ -45,8 +45,8 @@ Crear una app para controlar boletas de eventos desde que se crean hasta que se 
 
 - Pasarela de pago automatica.
 - Envio automatico por WhatsApp o correo.
-- Roles avanzados y auditoria completa. El MVP ya contempla roles iniciales simples para preparar login.
+- Autorizacion avanzada por organizacion o multi-evento. El MVP ya contempla roles iniciales, responsables vinculados a usuarios y auditoria operativa.
 - Escaneo QR real.
-- Persistencia definitiva con migraciones.
+- Escalamiento de reportes financieros avanzados.
 
 Estos puntos se pueden agregar despues sin cambiar la arquitectura base.

@@ -4,6 +4,174 @@ import { PrismaService } from "../src/database/prisma.service";
 import { EventStoreService } from "../src/events/event-store.service";
 
 describe("EventStoreService", () => {
+  it("completes the MVP ticket lifecycle from event setup to closeout", async () => {
+    const store = new EventStoreService();
+    const admin: AuthenticatedUser = {
+      email: "admin@example.com",
+      id: "usr_admin",
+      name: "Admin MVP",
+      role: "admin"
+    };
+    const supervisor: AuthenticatedUser = {
+      email: "supervisor@example.com",
+      id: "usr_supervisor",
+      name: "Supervisor MVP",
+      role: "supervisor"
+    };
+    const regular: AuthenticatedUser = {
+      email: "regular@example.com",
+      id: "usr_regular",
+      name: "Operador MVP",
+      role: "regular"
+    };
+
+    const event = await store.createEvent(
+      {
+        date: "2026-08-15T20:00:00.000Z",
+        expectedAttendees: 2,
+        name: "MVP Ciclo Completo",
+        status: "active",
+        venue: "Auditorio MVP"
+      },
+      admin
+    );
+    const distributor = await store.addDistributor(
+      event.id,
+      {
+        name: "Responsable MVP",
+        phone: "+57 300 111 2222",
+        userId: regular.id
+      },
+      admin
+    );
+    const tickets = await store.createTicketBatch(
+      event.id,
+      {
+        capitalizationAmount: 10000,
+        codePrefix: "MVP",
+        price: 50000,
+        quantity: 2
+      },
+      admin
+    );
+    const soldTicket = tickets[0];
+    const pendingTicket = tickets[1];
+    if (!soldTicket || !pendingTicket) {
+      throw new Error("MVP tickets were not created");
+    }
+
+    await store.assignTicket(
+      soldTicket.id,
+      {
+        distributorId: distributor.id,
+        recipientName: "Comprador MVP"
+      },
+      supervisor
+    );
+    await store.assignTicket(
+      pendingTicket.id,
+      {
+        distributorId: distributor.id,
+        recipientName: "Reserva MVP"
+      },
+      supervisor
+    );
+
+    const reserved = await store.reserveTicket(
+      soldTicket.id,
+      {
+        notes: "Apartada por llamada",
+        recipientName: "Comprador MVP"
+      },
+      regular
+    );
+    expect(reserved.status).toBe("reserved");
+
+    const sale = await store.registerSale(
+      soldTicket.id,
+      {
+        amount: 50000,
+        buyerName: "Comprador MVP",
+        buyerPhone: "+57 311 111 2222",
+        method: "transfer",
+        reference: "TRX-MVP-001"
+      },
+      regular
+    );
+    expect(sale.ticket.status).toBe("sold");
+    expect(sale.payment.status).toBe("pending");
+
+    const approved = await store.verifyPayment(
+      sale.payment.id,
+      {
+        status: "approved"
+      },
+      supervisor
+    );
+    expect(approved.payment.reviewedBy).toBe("Supervisor MVP");
+    expect(approved.ticket.status).toBe("paid");
+
+    const used = await store.checkInTicket(soldTicket.id, {}, regular);
+    expect(used).toMatchObject({
+      checkedInBy: "Operador MVP",
+      status: "used"
+    });
+
+    const regularTickets = await store.listTickets(event.id, regular);
+    expect(regularTickets.map((ticket) => ticket.id).sort()).toEqual(
+      [pendingTicket.id, soldTicket.id].sort()
+    );
+
+    const summary = await store.getPublicEventDashboard(event.id);
+    expect(JSON.stringify(summary)).not.toContain("Comprador MVP");
+    expect(summary.totals).toMatchObject({
+      paid: 1,
+      pendingToCollect: 0,
+      sold: 1,
+      used: 1
+    });
+
+    const closeout = await store.getEventCloseout(event.id);
+    expect(closeout).toMatchObject({
+      entry: {
+        allowedTickets: 1,
+        remainingAllowedTickets: 0,
+        usedTickets: 1
+      },
+      payments: {
+        approved: 1,
+        approvedAmount: 50000,
+        pending: 0
+      },
+      totals: {
+        capitalization: 10000,
+        grossSales: 50000,
+        paid: 1,
+        used: 1
+      }
+    });
+    expect(closeout.pendingTickets).toEqual([
+      expect.objectContaining({
+        id: pendingTicket.id,
+        status: "assigned"
+      })
+    ]);
+
+    await store.updateEvent(event.id, { status: "closed" }, admin);
+
+    await expect(
+      store.registerSale(
+        pendingTicket.id,
+        {
+          amount: 50000,
+          buyerName: "Compra tardia",
+          method: "cash"
+        },
+        regular
+      )
+    ).rejects.toThrow("closed events do not accept operational changes");
+  });
+
   it("uses Prisma when the database is configured", async () => {
     const findMany = jest.fn().mockResolvedValue([
       {

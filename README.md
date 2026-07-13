@@ -52,6 +52,7 @@ pnpm start
 16. Leer los commits en orden con `git log --oneline --reverse`.
 17. Ejecutar localmente con `pnpm dev`.
 18. Migrar el proyecto y las skills a otro equipo con `docs/14-portabilidad-proyecto-y-skills.md`.
+19. Validar el ciclo completo del MVP con `docs/15-checklist-mvp-ciclo-boletas.md`.
 
 ## Estado inicial
 
