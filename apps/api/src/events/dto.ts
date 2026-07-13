@@ -104,6 +104,35 @@ export class CreateDistributorDto {
   notes?: string;
 }
 
+export class UpdateDistributorDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(36)
+  userId?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
 export class CreateTicketBatchDto {
   @Type(() => Number)
   @IsInt()

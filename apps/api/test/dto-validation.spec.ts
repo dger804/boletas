@@ -5,6 +5,7 @@ import {
   CreateEventDto,
   CreateTicketBatchDto,
   RegisterSaleDto,
+  UpdateDistributorDto,
   UpdateEventDto
 } from "../src/events/dto";
 import { EventsController } from "../src/events/events.controller";
@@ -58,6 +59,20 @@ describe("DTO validation", () => {
     expect(value).toMatchObject({
       expectedAttendees: 250,
       status: "active"
+    });
+  });
+
+  it("accepts distributor user link updates", async () => {
+    const value = await pipe.transform(
+      {
+        userId: "usr_regular"
+      },
+      { metatype: UpdateDistributorDto, type: "body" }
+    );
+
+    expect(value).toBeInstanceOf(UpdateDistributorDto);
+    expect(value).toMatchObject({
+      userId: "usr_regular"
     });
   });
 

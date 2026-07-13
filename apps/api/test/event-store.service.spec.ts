@@ -928,4 +928,57 @@ describe("EventStoreService", () => {
       }
     });
   });
+
+  it("allows admins to link existing distributors to users", async () => {
+    const store = new EventStoreService();
+    const admin: AuthenticatedUser = {
+      email: "admin@example.com",
+      id: "usr_admin",
+      name: "Admin",
+      role: "admin"
+    };
+    const distributor = await store.addDistributor("evt_demo", {
+      name: "Responsable sin vinculo",
+      phone: "+57 300 000 0003"
+    });
+
+    await expect(
+      store.updateDistributor(
+        "evt_demo",
+        distributor.id,
+        {
+          userId: "usr_regular"
+        },
+        admin
+      )
+    ).resolves.toMatchObject({
+      id: distributor.id,
+      userId: "usr_regular"
+    });
+  });
+
+  it("prevents supervisors from changing distributor user links", async () => {
+    const store = new EventStoreService();
+    const supervisor: AuthenticatedUser = {
+      email: "supervisor@example.com",
+      id: "usr_supervisor",
+      name: "Supervisor",
+      role: "supervisor"
+    };
+    const distributor = await store.addDistributor("evt_demo", {
+      name: "Responsable sin vinculo",
+      phone: "+57 300 000 0004"
+    });
+
+    await expect(
+      store.updateDistributor(
+        "evt_demo",
+        distributor.id,
+        {
+          userId: "usr_regular"
+        },
+        supervisor
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });

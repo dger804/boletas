@@ -15,6 +15,7 @@ import {
   CreateDistributorDto,
   CreateEventDto,
   CreateTicketBatchDto,
+  UpdateDistributorDto,
   UpdateEventDto
 } from "./dto";
 import { EventStoreService } from "./event-store.service";
@@ -78,6 +79,22 @@ export class EventsController {
     @Req() request: RequestWithUser
   ) {
     return this.store.addDistributor(eventId, body, request.user);
+  }
+
+  @Roles("supervisor", "admin")
+  @Patch(":eventId/distributors/:distributorId")
+  updateDistributor(
+    @Param("eventId") eventId: string,
+    @Param("distributorId") distributorId: string,
+    @Body() body: UpdateDistributorDto,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.updateDistributor(
+      eventId,
+      distributorId,
+      body,
+      request.user
+    );
   }
 
   @Roles("admin")

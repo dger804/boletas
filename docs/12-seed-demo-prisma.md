@@ -13,7 +13,7 @@ Permite validar:
 - evidencias de pago aprobadas y pendientes;
 - check-in de una boleta usada.
 
-Los responsables demo no quedan vinculados a usuarios reales. Para probar autorizacion granular con un usuario `regular`, crea o edita un responsable desde `/tickets` con una sesion `admin` y asignale la cuenta activa correspondiente.
+Los responsables demo no quedan vinculados a usuarios reales. Para probar autorizacion granular con un usuario `regular`, vincula un responsable existente desde `/tickets` con una sesion `admin` y asignale la cuenta activa correspondiente.
 
 ## Datos creados
 

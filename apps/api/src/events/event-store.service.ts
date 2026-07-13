@@ -36,6 +36,7 @@ import type {
   ReleaseTicketReservationDto,
   RegisterSaleDto,
   ReserveTicketDto,
+  UpdateDistributorDto,
   UpdateEventDto,
   VoidTicketDto,
   VerifyPaymentDto
@@ -488,6 +489,71 @@ export class EventStoreService {
 
     this.findEvent(eventId);
     return this.distributors.filter((distributor) => distributor.eventId === eventId);
+  }
+
+  async updateDistributor(
+    eventId: string,
+    distributorId: string,
+    dto: UpdateDistributorDto,
+    actor?: AuthenticatedUser
+  ) {
+    this.assertDistributorUpdate(dto, actor);
+
+    if (this.prisma?.isConfigured()) {
+      const [event, distributor] = await Promise.all([
+        this.findPrismaEvent(eventId),
+        this.findPrismaDistributor(distributorId)
+      ]);
+
+      if (distributor.eventId !== eventId) {
+        throw new NotFoundException("distributor not found");
+      }
+
+      this.assertEventAcceptsOperations(event.status);
+      await this.assertPrismaUserCanOwnDistributor(dto.userId || undefined);
+
+      const updated = await this.prisma.distributor.update({
+        data: {
+          ...(dto.email !== undefined ? { email: dto.email || null } : {}),
+          ...(dto.name !== undefined ? { name: dto.name } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
+          ...(dto.phone !== undefined ? { phone: dto.phone } : {}),
+          ...(dto.userId !== undefined ? { userId: dto.userId || null } : {})
+        },
+        where: { id: distributor.id }
+      });
+
+      await this.createAuditLog({
+        action: "distributor.update",
+        actor,
+        entityId: distributor.id,
+        entityType: "distributor",
+        eventId,
+        metadata: {
+          fieldsChanged: this.changedDistributorFields(dto).join(","),
+          userId: updated.userId
+        }
+      });
+
+      return this.toDistributorRecord(updated);
+    }
+
+    const event = this.findEvent(eventId);
+    const distributor = this.findDistributor(distributorId);
+
+    if (distributor.eventId !== eventId) {
+      throw new NotFoundException("distributor not found");
+    }
+
+    this.assertEventAcceptsOperations(event.status);
+
+    distributor.email = dto.email !== undefined ? dto.email || undefined : distributor.email;
+    distributor.name = dto.name ?? distributor.name;
+    distributor.notes = dto.notes !== undefined ? dto.notes || undefined : distributor.notes;
+    distributor.phone = dto.phone ?? distributor.phone;
+    distributor.userId = dto.userId !== undefined ? dto.userId || undefined : distributor.userId;
+
+    return distributor;
   }
 
   async createTicketBatch(
@@ -1498,6 +1564,25 @@ export class EventStoreService {
     actor?: AuthenticatedUser
   ): actor is AuthenticatedUser & { role: "regular" } {
     return actor?.role === "regular";
+  }
+
+  private assertDistributorUpdate(
+    dto: UpdateDistributorDto,
+    actor?: AuthenticatedUser
+  ) {
+    if (this.changedDistributorFields(dto).length === 0) {
+      throw new BadRequestException("distributor update requires at least one field");
+    }
+
+    if (dto.userId !== undefined && actor?.role !== "admin") {
+      throw new ForbiddenException("only admin can link distributor users");
+    }
+  }
+
+  private changedDistributorFields(dto: UpdateDistributorDto) {
+    return (["email", "name", "notes", "phone", "userId"] as const).filter(
+      (field) => dto[field] !== undefined
+    );
   }
 
   private async findPrismaEvent(eventId: string) {

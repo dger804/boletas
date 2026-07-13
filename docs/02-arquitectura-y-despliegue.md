@@ -113,7 +113,7 @@ La primera migracion Prisma crea `events`, `distributors`, `tickets`, `payment_e
 
 Los endpoints persistentes de eventos, boletas, pagos, auditoria y usuarios quedan protegidos con sesiones de usuario y roles. El `ADMIN_API_TOKEN` temporal ya fue retirado. Ver `docs/11-admin-api-token.md` y `docs/13-auth-login-roles.md`.
 
-La primera base de login y roles ya existe. Usa usuarios en MySQL, tokens firmados con `AUTH_TOKEN_SECRET` y roles `regular`, `supervisor`, `admin`. Durante la transicion, los endpoints administrativos aceptan usuarios `admin` o el token temporal. Ver `docs/13-auth-login-roles.md`.
+La primera base de login y roles ya existe. Usa usuarios en MySQL, tokens firmados con `AUTH_TOKEN_SECRET` y roles `regular`, `supervisor`, `admin`. Los endpoints administrativos usan sesiones reales y permisos por rol. Ver `docs/13-auth-login-roles.md`.
 
 Los datos demo persistentes se cargan con `pnpm db:seed` y requieren `DATABASE_URL` en el entorno de ejecucion. Ver `docs/12-seed-demo-prisma.md`.
 
@@ -132,6 +132,6 @@ El corte operativo `GET /api/events/:eventId/closeout` tambien queda reservado p
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
-La autorizacion granular inicial vincula responsables (`distributors.user_id`) con usuarios. Con ese vinculo, los usuarios `regular` solo operan boletas asignadas a su responsable; `supervisor` y `admin` conservan visibilidad completa.
+La autorizacion granular inicial vincula responsables (`distributors.user_id`) con usuarios. Con ese vinculo, los usuarios `regular` solo operan boletas asignadas a su responsable; `supervisor` y `admin` conservan visibilidad completa. Los `admin` pueden vincular o desvincular cuentas en responsables existentes desde `/tickets`.
 
 La siguiente decision tecnica es extender esa separacion a reportes de pago, cortes y vistas de recaudo por usuario/responsable.

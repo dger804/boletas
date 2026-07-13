@@ -54,4 +54,4 @@ En produccion y desarrollo:
 - Si la sesion existe pero el rol no alcanza, la API responde `403`.
 - `x-admin-token` ya no concede permisos.
 
-Siguiente etapa de seguridad: autorizacion mas granular por evento, boleta, distribuidor y pago cuando existan responsables asignados por usuario.
+Siguiente etapa de seguridad: extender la autorizacion granular ya iniciada hacia reportes de pago, cortes y recaudo por usuario/responsable.

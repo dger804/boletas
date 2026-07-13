@@ -362,11 +362,38 @@ const usersUrl = `${apiBase}/auth/users`;
 
       selector.innerHTML = [
         `<option value="">Sin cuenta vinculada</option>`,
-        ...currentAssignableUsers.map(
-          (user) =>
-            `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} - ${escapeHtml(roleLabels[user.role])}</option>`
-        )
+        ...currentAssignableUsers.map((user) => renderAssignableUserOption(user))
       ].join("");
+    };
+
+    const renderAssignableUserOption = (user: ManagedUser, selectedUserId = "") =>
+      `<option value="${escapeHtml(user.id)}"${user.id === selectedUserId ? " selected" : ""}>${escapeHtml(user.name)} - ${escapeHtml(roleLabels[user.role])}</option>`;
+
+    const renderDistributorUserSelector = (distributor: DistributorRecord) => {
+      if (currentUser?.role !== "admin") {
+        return "";
+      }
+
+      return `
+        <div class="mt-3 grid gap-2">
+          <select
+            class="h-9 rounded-md border border-zinc-200 bg-white px-2 text-xs outline-none focus:border-zinc-500"
+            data-distributor-user-link="${escapeHtml(distributor.id)}"
+          >
+            <option value="">Sin cuenta vinculada</option>
+            ${currentAssignableUsers
+              .map((user) => renderAssignableUserOption(user, distributor.userId ?? ""))
+              .join("")}
+          </select>
+          <button
+            class="inline-flex h-8 items-center justify-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+            data-save-distributor-user="${escapeHtml(distributor.id)}"
+            type="button"
+          >
+            Guardar vinculo
+          </button>
+        </div>
+      `;
     };
 
     const bindLogout = () => {
@@ -656,6 +683,7 @@ const usersUrl = `${apiBase}/auth/users`;
                   ? `<p class="mt-1 truncate text-[11px] uppercase text-zinc-500">Cuenta vinculada</p>`
                   : ""
               }
+              ${renderDistributorUserSelector(distributor)}
             </li>
           `
         )
@@ -1191,6 +1219,7 @@ const usersUrl = `${apiBase}/auth/users`;
         ? payload.users.filter(isManagedUser).filter((user) => user.status === "active")
         : [];
       renderAssignableUsers();
+      renderDistributors();
     };
 
     const loadTickets = async () => {
@@ -1384,6 +1413,62 @@ const usersUrl = `${apiBase}/auth/users`;
           hideResponsibleDetails();
         }
       });
+
+      document
+        .querySelector("[data-distributors-list]")
+        ?.addEventListener("click", (event) => {
+          const target = event.target;
+
+          if (!(target instanceof HTMLElement)) {
+            return;
+          }
+
+          const saveButton = target.closest<HTMLButtonElement>(
+            "[data-save-distributor-user]"
+          );
+
+          if (saveButton?.dataset.saveDistributorUser) {
+            void saveDistributorUserLink(saveButton.dataset.saveDistributorUser);
+          }
+        });
+    };
+
+    const saveDistributorUserLink = async (distributorId: string) => {
+      const { eventsUrl } = getConfig();
+      const selectedEvent = getSelectedEvent();
+      const selector = document.querySelector<HTMLSelectElement>(
+        `[data-distributor-user-link="${CSS.escape(distributorId)}"]`
+      );
+
+      if (currentUser?.role !== "admin" || !eventsUrl || !selectedEvent || !selector) {
+        setStatus("Tu rol no permite vincular cuentas a responsables.", "error");
+        return;
+      }
+
+      if (selectedEvent.status === "closed") {
+        setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
+        return;
+      }
+
+      try {
+        await requestJson<DistributorRecord>(
+          `${eventsUrl}/${encodeURIComponent(selectedEvent.id)}/distributors/${encodeURIComponent(distributorId)}`,
+          {
+            body: JSON.stringify({
+              userId: selector.value
+            }),
+            method: "PATCH"
+          }
+        );
+        setStatus("Vinculo de responsable actualizado.", "success");
+        await loadDistributors();
+        await loadTickets();
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible actualizar el vinculo.",
+          "error"
+        );
+      }
     };
 
     const bindCreateDistributorForm = () => {

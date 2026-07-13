@@ -151,6 +151,7 @@ GET   /api/events/:eventId/dashboard      supervisor, admin
 GET   /api/events/:eventId/closeout       supervisor, admin
 GET   /api/events/:eventId/distributors   supervisor, admin
 POST  /api/events/:eventId/distributors   supervisor, admin
+PATCH /api/events/:eventId/distributors/:distributorId supervisor, admin
 POST  /api/events/:eventId/tickets/batch  admin
 
 GET   /api/tickets                        regular, supervisor, admin
@@ -285,11 +286,12 @@ Los usuarios `supervisor` y `admin` tambien pueden gestionar responsables desde 
 ```txt
 GET  /api/events/:eventId/distributors
 POST /api/events/:eventId/distributors
+PATCH /api/events/:eventId/distributors/:distributorId
 ```
 
 El responsable puede quedar vinculado a una cuenta de usuario con `userId`. Este campo es opcional para conservar datos historicos y responsables externos, pero habilita autorizacion granular: un usuario `regular` solo lista, reserva, libera reserva, vende o registra ingreso sobre boletas asignadas a un responsable cuyo `userId` sea su propia cuenta.
 
-Desde la UI, los usuarios `admin` ven un selector de cuenta activa al crear responsables. Los `supervisor` pueden crear responsables sin vincular cuenta, pero no pueden listar ni administrar usuarios.
+Desde la UI, los usuarios `admin` ven un selector de cuenta activa al crear responsables y tambien pueden vincular o desvincular una cuenta en responsables existentes. Los `supervisor` pueden crear y editar datos de contacto de responsables sin vincular cuenta, porque no pueden listar ni administrar usuarios.
 
 Desde la tabla de inventario, las boletas `available`, `assigned` o `reserved` muestran la accion `Asignar`. Esa accion prepara el formulario lateral para escoger responsable y guardar:
 
@@ -436,6 +438,7 @@ La tabla `audit_logs` registra acciones sensibles cuando la API corre con Prisma
 event.create
 event.update
 distributor.create
+distributor.update
 ticket.batch_create
 ticket.assign
 ticket.sale
