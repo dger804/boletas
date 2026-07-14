@@ -285,9 +285,14 @@ export class EventStoreService {
     );
   }
 
-  async getPublicEventDashboard(eventId: string): Promise<PublicEventDashboard> {
-    const dashboard = await this.getEventDashboard(eventId);
-    const tickets = await this.listTickets(eventId);
+  async getPublicEventDashboard(
+    eventId: string,
+    actor?: AuthenticatedUser
+  ): Promise<PublicEventDashboard> {
+    const dashboard = this.isRegularActor(actor)
+      ? await this.getRegularEventDashboard(eventId, actor)
+      : await this.getEventDashboard(eventId);
+    const tickets = await this.listTickets(eventId, actor);
     const distributorLabels = new Map(
       dashboard.distributors.map((distributor, index) => [
         distributor.id,
@@ -326,6 +331,64 @@ export class EventStoreService {
         status: payment.status
       }))
     };
+  }
+
+  private async getRegularEventDashboard(
+    eventId: string,
+    actor: AuthenticatedUser & { role: "regular" }
+  ): Promise<EventDashboard> {
+    if (this.prisma?.isConfigured()) {
+      const event = await this.findPrismaEvent(eventId);
+      const [eventTickets, distributors, recentPayments] = await Promise.all([
+        this.prisma.ticket.findMany({
+          orderBy: { createdAt: "asc" },
+          where: {
+            eventId,
+            distributor: { is: { userId: actor.id } }
+          }
+        }),
+        this.prisma.distributor.findMany({
+          orderBy: { createdAt: "asc" },
+          where: { eventId, userId: actor.id }
+        }),
+        this.prisma.paymentEvidence.findMany({
+          orderBy: { receivedAt: "desc" },
+          take: 8,
+          where: {
+            eventId,
+            ticket: {
+              distributor: { is: { userId: actor.id } }
+            }
+          }
+        })
+      ]);
+
+      return this.buildDashboard(
+        this.toEventRecord(event),
+        eventTickets.map(this.toTicketRecord),
+        distributors.map(this.toDistributorRecord),
+        recentPayments.map(this.toPaymentEvidence)
+      );
+    }
+
+    const event = this.findEvent(eventId);
+    const distributors = this.distributors.filter(
+      (distributor) => distributor.eventId === eventId && distributor.userId === actor.id
+    );
+    const distributorIds = new Set(distributors.map((distributor) => distributor.id));
+    const eventTickets = this.tickets.filter(
+      (ticket) => ticket.eventId === eventId && distributorIds.has(ticket.distributorId ?? "")
+    );
+    const eventTicketIds = new Set(eventTickets.map((ticket) => ticket.id));
+    const recentPayments = this.payments
+      .filter(
+        (payment) =>
+          payment.eventId === eventId && eventTicketIds.has(payment.ticketId)
+      )
+      .slice(-8)
+      .reverse();
+
+    return this.buildDashboard(event, eventTickets, distributors, recentPayments);
   }
 
   async getEventCloseout(eventId: string): Promise<EventCloseout> {

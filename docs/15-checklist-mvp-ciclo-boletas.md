@@ -48,6 +48,7 @@ No pegues contrasenas, tokens ni URLs con credenciales en chats, commits o captu
 ## Resultado esperado
 
 - El usuario `regular` no ve ni opera boletas fuera de su responsable vinculado.
+- El dashboard de un usuario `regular` muestra totales de sus boletas vinculadas, no del evento completo.
 - La venta crea una evidencia `pending`.
 - La aprobacion de pago cambia la boleta a `paid`.
 - El check-in cambia la boleta a `used` y registra el usuario autenticado como responsable del ingreso.

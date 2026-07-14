@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import type { AuthenticatedUser } from "@boletas/shared";
 import { ROLES_KEY } from "../src/auth/roles.decorator";
 import { EventsController } from "../src/events/events.controller";
 import { EventStoreService } from "../src/events/event-store.service";
@@ -32,9 +33,17 @@ describe("EventsController", () => {
       getPublicEventDashboard: jest.fn().mockResolvedValue(summary)
     } as unknown as EventStoreService;
     const controller = new EventsController(store);
+    const user: AuthenticatedUser = {
+      email: "regular@example.com",
+      id: "usr_regular",
+      name: "Regular",
+      role: "regular"
+    };
 
-    await expect(controller.getSummary("evt_demo")).resolves.toBe(summary);
-    expect(store.getPublicEventDashboard).toHaveBeenCalledWith("evt_demo");
+    await expect(
+      controller.getSummary("evt_demo", { user } as never)
+    ).resolves.toBe(summary);
+    expect(store.getPublicEventDashboard).toHaveBeenCalledWith("evt_demo", user);
   });
 
   it("keeps the full dashboard out of the regular role", () => {

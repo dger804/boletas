@@ -288,6 +288,88 @@ describe("EventStoreService", () => {
     expect(serialized).not.toContain("evidencia-demo");
   });
 
+  it("scopes protected summaries for regular users to linked distributors", async () => {
+    const store = new EventStoreService();
+    const regular: AuthenticatedUser = {
+      email: "regular@example.com",
+      id: "usr_regular",
+      name: "Regular",
+      role: "regular"
+    };
+    const event = await store.createEvent({
+      date: "2026-08-01T20:00:00.000Z",
+      expectedAttendees: 50,
+      name: "Resumen Granular",
+      status: "active",
+      venue: "Auditorio Test"
+    });
+    const ownDistributor = await store.addDistributor(event.id, {
+      name: "Responsable Propio",
+      phone: "+57 300 000 0001",
+      userId: regular.id
+    });
+    const otherDistributor = await store.addDistributor(event.id, {
+      name: "Responsable Otro",
+      phone: "+57 300 000 0002",
+      userId: "usr_other"
+    });
+    const tickets = await store.createTicketBatch(event.id, {
+      price: 50000,
+      quantity: 2
+    });
+    const ownTicket = tickets[0];
+    const otherTicket = tickets[1];
+    if (!ownTicket || !otherTicket) {
+      throw new Error("tickets were not created");
+    }
+
+    await store.assignTicket(ownTicket.id, {
+      distributorId: ownDistributor.id
+    });
+    await store.assignTicket(otherTicket.id, {
+      distributorId: otherDistributor.id
+    });
+    const ownSale = await store.registerSale(
+      ownTicket.id,
+      {
+        amount: 50000,
+        buyerName: "Comprador Propio",
+        method: "cash"
+      },
+      regular
+    );
+    await store.verifyPayment(ownSale.payment.id, {
+      reviewedBy: "Supervisor Test",
+      status: "approved"
+    });
+    const otherSale = await store.registerSale(otherTicket.id, {
+      amount: 50000,
+      buyerName: "Comprador Otro",
+      method: "cash"
+    });
+    await store.verifyPayment(otherSale.payment.id, {
+      reviewedBy: "Supervisor Test",
+      status: "approved"
+    });
+
+    const regularSummary = await store.getPublicEventDashboard(event.id, regular);
+    const publicSummary = await store.getPublicEventDashboard(event.id);
+
+    expect(regularSummary.totals).toMatchObject({
+      grossSales: 50000,
+      paid: 1,
+      tickets: 1
+    });
+    expect(regularSummary.distributors).toHaveLength(1);
+    expect(regularSummary.ticketSamples).toHaveLength(1);
+    expect(regularSummary.recentPayments).toHaveLength(1);
+    expect(publicSummary.totals).toMatchObject({
+      grossSales: 100000,
+      paid: 2,
+      tickets: 2
+    });
+  });
+
   it("builds an operational closeout for supervisors", async () => {
     const store = new EventStoreService();
     const event = await store.createEvent({

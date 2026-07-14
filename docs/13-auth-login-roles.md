@@ -174,6 +174,8 @@ GET /api/public/events/:eventId/dashboard
 
 El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/summary` con el token guardado en `sessionStorage`. Esa ruta devuelve el mismo contrato sanitizado que la ruta publica, por lo que no expone compradores, telefonos, referencias ni URLs de evidencia a usuarios `regular`.
 
+Cuando el usuario autenticado es `regular`, el resumen protegido se calcula solo con las boletas de responsables vinculados a su cuenta. Los usuarios `supervisor` y `admin` reciben el resumen del evento completo. La ruta publica `GET /api/public/events/:eventId/dashboard` conserva el resumen sanitizado general sin sesion.
+
 El corte operativo de Astro usa `GET /api/events/:eventId/closeout` y queda reservado para `supervisor` y `admin`. Es una lectura calculada del estado actual del evento; todavia no bloquea ventas ni cambia el estado del evento.
 
 Si un `admin` marca un evento como `closed`, la API deja disponibles las consultas historicas, dashboard, corte y auditoria, pero bloquea cambios operativos: crear responsables, crear lotes, asignar, reservar, liberar reserva, vender, anular, validar pagos y registrar ingreso. Para hacer ajustes posteriores, un `admin` debe reabrir el evento cambiando su `status` a `active`.
@@ -613,4 +615,4 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Extender la autorizacion granular a reportes de pago y cortes cuando existan responsables vinculados suficientes para separar recaudos por usuario.
+1. Extender la autorizacion granular a cortes y reportes administrativos cuando se requieran vistas por usuario/responsable.
