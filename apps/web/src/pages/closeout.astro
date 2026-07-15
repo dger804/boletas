@@ -151,8 +151,12 @@ const eventsUrl = `${apiBase}/events`;
 
     let authToken = "";
     let currentEvents: EventRecord[] = [];
+    let currentCloseoutDistributors: CloseoutDistributor[] = [];
     let selectedEventId = new URLSearchParams(window.location.search)
       .get("eventId")
+      ?.trim() ?? "";
+    let selectedDistributorId = new URLSearchParams(window.location.search)
+      .get("distributorId")
       ?.trim() ?? "";
 
     const money = new Intl.NumberFormat("es-CO", {
@@ -424,6 +428,26 @@ const eventsUrl = `${apiBase}/events`;
       selector.value = selectedEventId;
     };
 
+    const renderCloseoutScopeOptions = () => {
+      const selector = document.querySelector<HTMLSelectElement>(
+        "[data-closeout-distributor-filter]"
+      );
+
+      if (!selector) {
+        return;
+      }
+
+      selector.innerHTML = [
+        `<option value="">Todos los responsables</option>`,
+        ...currentCloseoutDistributors.map(
+          (distributor) =>
+            `<option value="${escapeHtml(distributor.id)}">${escapeHtml(distributor.name)}</option>`
+        )
+      ].join("");
+      selector.value = selectedDistributorId;
+      selector.disabled = currentCloseoutDistributors.length === 0;
+    };
+
     const renderDistributors = (rows: CloseoutDistributor[]) => {
       const body = document.querySelector<HTMLElement>("[data-closeout-distributors]");
 
@@ -515,6 +539,11 @@ const eventsUrl = `${apiBase}/events`;
     };
 
     const renderCloseout = (closeout: EventCloseout) => {
+      if (!selectedDistributorId) {
+        currentCloseoutDistributors = closeout.distributors;
+        renderCloseoutScopeOptions();
+      }
+
       setText("event-name", closeout.event.name);
       setText("event-meta", `${formatDateTime(closeout.event.date)} - ${closeout.event.venue}`);
       setText("generated-at", formatDateTime(closeout.generatedAt));
@@ -565,8 +594,15 @@ const eventsUrl = `${apiBase}/events`;
 
       try {
         setStatus("Generando corte operativo...", "neutral");
+        const params = new URLSearchParams();
+
+        if (selectedDistributorId) {
+          params.set("distributorId", selectedDistributorId);
+        }
+
+        const query = params.toString();
         const payload = await requestJson<unknown>(
-          `${eventsUrl}/${encodeURIComponent(selectedEventId)}/closeout`
+          `${eventsUrl}/${encodeURIComponent(selectedEventId)}/closeout${query ? `?${query}` : ""}`
         );
 
         if (!isCloseout(payload)) {
@@ -591,8 +627,18 @@ const eventsUrl = `${apiBase}/events`;
 
       document.querySelector("[data-event-selector]")?.addEventListener("change", (event) => {
         selectedEventId = (event.currentTarget as HTMLSelectElement).value;
+        selectedDistributorId = "";
+        currentCloseoutDistributors = [];
+        renderCloseoutScopeOptions();
         void loadCloseout();
       });
+
+      document
+        .querySelector("[data-closeout-distributor-filter]")
+        ?.addEventListener("change", (event) => {
+          selectedDistributorId = (event.currentTarget as HTMLSelectElement).value;
+          void loadCloseout();
+        });
     };
 
     try {
@@ -706,6 +752,13 @@ const eventsUrl = `${apiBase}/events`;
               data-event-selector
             >
               <option value="">Cargando eventos</option>
+            </select>
+            <select
+              class="h-10 min-w-56 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-zinc-500 disabled:bg-zinc-100"
+              data-closeout-distributor-filter
+              disabled
+            >
+              <option value="">Todos los responsables</option>
             </select>
             <button
               class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"

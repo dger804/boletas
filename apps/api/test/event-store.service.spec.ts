@@ -437,6 +437,79 @@ describe("EventStoreService", () => {
     ]);
   });
 
+  it("filters operational closeout by distributor", async () => {
+    const store = new EventStoreService();
+    const event = await store.createEvent({
+      date: "2026-08-01T20:00:00.000Z",
+      expectedAttendees: 30,
+      name: "Corte por Responsable",
+      status: "active",
+      venue: "Auditorio Test"
+    });
+    const firstDistributor = await store.addDistributor(event.id, {
+      name: "Responsable Uno",
+      phone: "+57 300 000 0001"
+    });
+    const secondDistributor = await store.addDistributor(event.id, {
+      name: "Responsable Dos",
+      phone: "+57 300 000 0002"
+    });
+    const tickets = await store.createTicketBatch(event.id, {
+      capitalizationAmount: 10000,
+      price: 50000,
+      quantity: 2
+    });
+    const firstTicket = tickets[0];
+    const secondTicket = tickets[1];
+    if (!firstTicket || !secondTicket) {
+      throw new Error("tickets were not created");
+    }
+
+    await store.assignTicket(firstTicket.id, {
+      distributorId: firstDistributor.id
+    });
+    await store.assignTicket(secondTicket.id, {
+      distributorId: secondDistributor.id
+    });
+    const firstSale = await store.registerSale(firstTicket.id, {
+      amount: 50000,
+      buyerName: "Comprador Uno",
+      method: "cash"
+    });
+    await store.verifyPayment(firstSale.payment.id, {
+      reviewedBy: "Supervisor Test",
+      status: "approved"
+    });
+    const secondSale = await store.registerSale(secondTicket.id, {
+      amount: 50000,
+      buyerName: "Comprador Dos",
+      method: "cash"
+    });
+    await store.verifyPayment(secondSale.payment.id, {
+      reviewedBy: "Supervisor Test",
+      status: "approved"
+    });
+
+    const closeout = await store.getEventCloseout(event.id, {
+      distributorId: firstDistributor.id
+    });
+
+    expect(closeout.totals).toMatchObject({
+      grossSales: 50000,
+      paid: 1,
+      tickets: 1
+    });
+    expect(closeout.distributors).toHaveLength(1);
+    expect(closeout.distributors[0]).toMatchObject({
+      id: firstDistributor.id,
+      name: "Responsable Uno"
+    });
+    expect(closeout.payments).toMatchObject({
+      approved: 1,
+      approvedAmount: 50000
+    });
+  });
+
   it("updates event metadata", async () => {
     const store = new EventStoreService();
 

@@ -46,6 +46,39 @@ describe("EventsController", () => {
     expect(store.getPublicEventDashboard).toHaveBeenCalledWith("evt_demo", user);
   });
 
+  it("passes closeout scope filters to the event store", async () => {
+    const closeout = {
+      event: {
+        createdAt: "2026-01-01T00:00:00.000Z",
+        date: "2026-07-18T20:00:00.000Z",
+        expectedAttendees: 120,
+        id: "evt_demo",
+        name: "Lanzamiento Demo",
+        status: "active",
+        venue: "Auditorio Principal"
+      },
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      totals: {},
+      payments: {},
+      entry: {},
+      distributors: [],
+      pendingTickets: [],
+      pendingPayments: []
+    };
+    const store = {
+      getEventCloseout: jest.fn().mockResolvedValue(closeout)
+    } as unknown as EventStoreService;
+    const controller = new EventsController(store);
+
+    await expect(
+      controller.getCloseout("evt_demo", "dst_demo", "usr_regular")
+    ).resolves.toBe(closeout);
+    expect(store.getEventCloseout).toHaveBeenCalledWith("evt_demo", {
+      distributorId: "dst_demo",
+      userId: "usr_regular"
+    });
+  });
+
   it("keeps the full dashboard out of the regular role", () => {
     const fullDashboardRoles = Reflect.getMetadata(
       ROLES_KEY,

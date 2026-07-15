@@ -128,10 +128,10 @@ GET /api/public/events/:eventId/dashboard
 
 Estos endpoints devuelven metricas agregadas, muestras anonimizadas y pagos recientes sin compradores, telefonos, referencias de transferencia ni URLs de evidencia. Las acciones que crean o modifican datos siguen en endpoints protegidos. El dashboard completo `GET /api/events/:eventId/dashboard` queda reservado para `supervisor` y `admin`.
 
-El corte operativo `GET /api/events/:eventId/closeout` tambien queda reservado para `supervisor` y `admin`. Es una lectura calculada para revisar o imprimir el estado actual de recaudo, entrada, responsables y pendientes; no cambia el estado del evento.
+El corte operativo `GET /api/events/:eventId/closeout` tambien queda reservado para `supervisor` y `admin`. Es una lectura calculada para revisar o imprimir el estado actual de recaudo, entrada, responsables y pendientes; no cambia el estado del evento. Puede filtrarse por `distributorId` o `userId` para revisar un responsable especifico.
 
 Como Hostinger sirve el frontend como archivos estaticos, la lectura del dashboard debe ejecutarse en el navegador. Un `fetch` hecho durante el build de Astro solo congelaria los datos hasta el siguiente despliegue.
 
 La autorizacion granular inicial vincula responsables (`distributors.user_id`) con usuarios. Con ese vinculo, los usuarios `regular` solo operan boletas asignadas a su responsable y su resumen protegido se calcula con ese mismo alcance; `supervisor` y `admin` conservan visibilidad completa. Los `admin` pueden vincular o desvincular cuentas en responsables existentes desde `/tickets`.
 
-La siguiente decision tecnica es extender esa separacion a cortes y reportes administrativos cuando se requieran vistas por usuario/responsable.
+La siguiente decision tecnica es definir si se necesitan exportaciones formales de cortes o reportes financieros adicionales.

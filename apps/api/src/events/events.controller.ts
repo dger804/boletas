@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards
 } from "@nestjs/common";
@@ -55,8 +56,15 @@ export class EventsController {
 
   @Roles("supervisor", "admin")
   @Get(":eventId/closeout")
-  getCloseout(@Param("eventId") eventId: string) {
-    return this.store.getEventCloseout(eventId);
+  getCloseout(
+    @Param("eventId") eventId: string,
+    @Query("distributorId") distributorId?: string,
+    @Query("userId") userId?: string
+  ) {
+    return this.store.getEventCloseout(eventId, {
+      distributorId: distributorId?.trim() || undefined,
+      userId: userId?.trim() || undefined
+    });
   }
 
   @Roles("regular", "supervisor", "admin")

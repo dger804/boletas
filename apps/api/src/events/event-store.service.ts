@@ -55,6 +55,7 @@ type PrismaPaymentWithTicket = PrismaPaymentEvidence & {
 };
 
 type AuditMetadata = Record<string, string | number | boolean | null>;
+type CloseoutScope = { distributorId?: string; userId?: string };
 
 @Injectable()
 export class EventStoreService {
@@ -391,11 +392,14 @@ export class EventStoreService {
     return this.buildDashboard(event, eventTickets, distributors, recentPayments);
   }
 
-  async getEventCloseout(eventId: string): Promise<EventCloseout> {
+  async getEventCloseout(
+    eventId: string,
+    scope: CloseoutScope = {}
+  ): Promise<EventCloseout> {
     const [dashboard, tickets, payments] = await Promise.all([
-      this.getEventDashboard(eventId),
-      this.listTickets(eventId),
-      this.listPayments(eventId)
+      this.getScopedEventDashboard(eventId, scope),
+      this.listScopedTickets(eventId, scope),
+      this.listScopedPayments(eventId, scope)
     ]);
     const approvedPayments = payments.filter((payment) => payment.status === "approved");
     const pendingPayments = payments.filter((payment) => payment.status === "pending");
@@ -480,6 +484,143 @@ export class EventStoreService {
         receivedAt: payment.receivedAt
       }))
     };
+  }
+
+  private hasCloseoutScope(scope: CloseoutScope) {
+    return Boolean(scope.distributorId || scope.userId);
+  }
+
+  private async getScopedEventDashboard(
+    eventId: string,
+    scope: CloseoutScope
+  ): Promise<EventDashboard> {
+    if (!this.hasCloseoutScope(scope)) {
+      return this.getEventDashboard(eventId);
+    }
+
+    if (this.prisma?.isConfigured()) {
+      const event = await this.findPrismaEvent(eventId);
+      await this.assertPrismaCloseoutScope(eventId, scope);
+      const [eventTickets, distributors, recentPayments] = await Promise.all([
+        this.prisma.ticket.findMany({
+          orderBy: { createdAt: "asc" },
+          where: this.prismaTicketScopeWhere(eventId, scope)
+        }),
+        this.prisma.distributor.findMany({
+          orderBy: { createdAt: "asc" },
+          where: this.prismaDistributorScopeWhere(eventId, scope)
+        }),
+        this.prisma.paymentEvidence.findMany({
+          orderBy: { receivedAt: "desc" },
+          take: 8,
+          where: this.prismaPaymentScopeWhere(eventId, scope)
+        })
+      ]);
+
+      return this.buildDashboard(
+        this.toEventRecord(event),
+        eventTickets.map(this.toTicketRecord),
+        distributors.map(this.toDistributorRecord),
+        recentPayments.map(this.toPaymentEvidence)
+      );
+    }
+
+    const event = this.findEvent(eventId);
+    this.assertMemoryCloseoutScope(eventId, scope);
+    const distributors = this.distributors.filter(
+      (distributor) =>
+        distributor.eventId === eventId && this.distributorMatchesScope(distributor, scope)
+    );
+    const distributorIds = new Set(distributors.map((distributor) => distributor.id));
+    const eventTickets = this.tickets.filter(
+      (ticket) => ticket.eventId === eventId && distributorIds.has(ticket.distributorId ?? "")
+    );
+    const ticketIds = new Set(eventTickets.map((ticket) => ticket.id));
+    const recentPayments = this.payments
+      .filter((payment) => payment.eventId === eventId && ticketIds.has(payment.ticketId))
+      .slice(-8)
+      .reverse();
+
+    return this.buildDashboard(event, eventTickets, distributors, recentPayments);
+  }
+
+  private async listScopedTickets(eventId: string, scope: CloseoutScope) {
+    if (!this.hasCloseoutScope(scope)) {
+      return this.listTickets(eventId);
+    }
+
+    if (this.prisma?.isConfigured()) {
+      await this.assertPrismaCloseoutScope(eventId, scope);
+      const tickets = await this.prisma.ticket.findMany({
+        include: {
+          distributor: {
+            select: {
+              email: true,
+              name: true,
+              notes: true,
+              phone: true
+            }
+          }
+        },
+        orderBy: { createdAt: "asc" },
+        where: this.prismaTicketScopeWhere(eventId, scope)
+      });
+
+      return tickets.map(this.toTicketRecord);
+    }
+
+    this.assertMemoryCloseoutScope(eventId, scope);
+    const distributors = this.distributors.filter(
+      (distributor) =>
+        distributor.eventId === eventId && this.distributorMatchesScope(distributor, scope)
+    );
+    const distributorIds = new Set(distributors.map((distributor) => distributor.id));
+
+    return this.tickets
+      .filter((ticket) => ticket.eventId === eventId && distributorIds.has(ticket.distributorId ?? ""))
+      .map((ticket) => this.withDistributorContact(ticket));
+  }
+
+  private async listScopedPayments(eventId: string, scope: CloseoutScope) {
+    if (!this.hasCloseoutScope(scope)) {
+      return this.listPayments(eventId);
+    }
+
+    if (this.prisma?.isConfigured()) {
+      await this.assertPrismaCloseoutScope(eventId, scope);
+      const payments = await this.prisma.paymentEvidence.findMany({
+        include: {
+          ticket: {
+            select: {
+              buyerName: true,
+              buyerPhone: true,
+              code: true,
+              status: true
+            }
+          }
+        },
+        orderBy: { receivedAt: "desc" },
+        where: this.prismaPaymentScopeWhere(eventId, scope)
+      });
+
+      return payments.map(this.toPaymentEvidence);
+    }
+
+    this.assertMemoryCloseoutScope(eventId, scope);
+    const distributors = this.distributors.filter(
+      (distributor) =>
+        distributor.eventId === eventId && this.distributorMatchesScope(distributor, scope)
+    );
+    const distributorIds = new Set(distributors.map((distributor) => distributor.id));
+    const ticketIds = new Set(
+      this.tickets
+        .filter((ticket) => ticket.eventId === eventId && distributorIds.has(ticket.distributorId ?? ""))
+        .map((ticket) => ticket.id)
+    );
+
+    return this.payments
+      .filter((payment) => payment.eventId === eventId && ticketIds.has(payment.ticketId))
+      .map((payment) => this.withPaymentTicketSummary(payment));
   }
 
   async addDistributor(
@@ -1621,6 +1762,82 @@ export class EventStoreService {
     if (!user || user.status !== "active") {
       throw new BadRequestException("distributor user must be active");
     }
+  }
+
+  private prismaDistributorScopeWhere(eventId: string, scope: CloseoutScope) {
+    return {
+      eventId,
+      ...(scope.distributorId ? { id: scope.distributorId } : {}),
+      ...(scope.userId ? { userId: scope.userId } : {})
+    };
+  }
+
+  private prismaTicketScopeWhere(eventId: string, scope: CloseoutScope) {
+    return {
+      eventId,
+      distributor: {
+        is: {
+          ...(scope.distributorId ? { id: scope.distributorId } : {}),
+          ...(scope.userId ? { userId: scope.userId } : {})
+        }
+      }
+    };
+  }
+
+  private prismaPaymentScopeWhere(eventId: string, scope: CloseoutScope) {
+    return {
+      eventId,
+      ticket: {
+        distributor: {
+          is: {
+            ...(scope.distributorId ? { id: scope.distributorId } : {}),
+            ...(scope.userId ? { userId: scope.userId } : {})
+          }
+        }
+      }
+    };
+  }
+
+  private async assertPrismaCloseoutScope(
+    eventId: string,
+    scope: CloseoutScope
+  ) {
+    if (!scope.distributorId) {
+      return;
+    }
+
+    const distributor = await this.findPrismaDistributor(scope.distributorId);
+
+    if (
+      distributor.eventId !== eventId ||
+      (scope.userId && distributor.userId !== scope.userId)
+    ) {
+      throw new NotFoundException("distributor not found");
+    }
+  }
+
+  private assertMemoryCloseoutScope(eventId: string, scope: CloseoutScope) {
+    this.findEvent(eventId);
+
+    if (!scope.distributorId) {
+      return;
+    }
+
+    const distributor = this.findDistributor(scope.distributorId);
+
+    if (
+      distributor.eventId !== eventId ||
+      (scope.userId && distributor.userId !== scope.userId)
+    ) {
+      throw new NotFoundException("distributor not found");
+    }
+  }
+
+  private distributorMatchesScope(distributor: Distributor, scope: CloseoutScope) {
+    return (
+      (!scope.distributorId || distributor.id === scope.distributorId) &&
+      (!scope.userId || distributor.userId === scope.userId)
+    );
   }
 
   private isRegularActor(

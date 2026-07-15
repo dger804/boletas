@@ -41,9 +41,10 @@ No pegues contrasenas, tokens ni URLs con credenciales en chats, commits o captu
 15. Ir a `/check-in` y registrar ingreso de la boleta pagada.
 16. Entrar a `/dashboard` y confirmar totales de vendidas, pagadas y usadas.
 17. Entrar a `/closeout` con `supervisor` o `admin` y revisar recaudo, entrada y pendientes.
-18. Entrar a `/audit` con `supervisor` o `admin` y confirmar acciones recientes.
-19. Entrar a `/events` como `admin` y cambiar el evento a `closed`.
-20. Confirmar que ventas, asignaciones, pagos e ingreso quedan bloqueados para ese evento cerrado.
+18. En `/closeout`, filtrar por responsable y confirmar que recaudo, entrada y pendientes cambian al alcance seleccionado.
+19. Entrar a `/audit` con `supervisor` o `admin` y confirmar acciones recientes.
+20. Entrar a `/events` como `admin` y cambiar el evento a `closed`.
+21. Confirmar que ventas, asignaciones, pagos e ingreso quedan bloqueados para ese evento cerrado.
 
 ## Resultado esperado
 
@@ -54,6 +55,7 @@ No pegues contrasenas, tokens ni URLs con credenciales en chats, commits o captu
 - El check-in cambia la boleta a `used` y registra el usuario autenticado como responsable del ingreso.
 - El dashboard publico/protegido no revela compradores, telefonos, referencias ni URLs de evidencia.
 - El corte operativo muestra recaudo aprobado, capitalizacion, entrada y pendientes.
+- El corte filtrado por responsable solo muestra boletas y pagos de ese responsable.
 - El evento `closed` conserva lecturas historicas y bloquea cambios operativos.
 
 ## Validacion tecnica local

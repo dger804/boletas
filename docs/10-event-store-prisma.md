@@ -119,6 +119,6 @@ Si `/api/events` responde `[]`, no es error: significa que la base real esta vac
 
 ## Pendientes
 
-1. Extender la autorizacion granular a cortes y reportes administrativos cuando se requieran vistas por usuario/responsable.
+1. Definir si se necesitan exportaciones formales de cortes o reportes financieros adicionales.
 2. Definir si cada usuario `regular` debe tener exactamente un responsable por evento o puede manejar varios.
 3. Agregar tests de integracion con una base de datos temporal.
