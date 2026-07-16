@@ -2,6 +2,7 @@
 import {
   CalendarDays,
   ClipboardCheck,
+  Download,
   LogOut,
   Printer,
   RefreshCw,
@@ -152,6 +153,7 @@ const eventsUrl = `${apiBase}/events`;
     let authToken = "";
     let currentEvents: EventRecord[] = [];
     let currentCloseoutDistributors: CloseoutDistributor[] = [];
+    let currentCloseout: EventCloseout | null = null;
     let selectedEventId = new URLSearchParams(window.location.search)
       .get("eventId")
       ?.trim() ?? "";
@@ -302,6 +304,127 @@ const eventsUrl = `${apiBase}/events`;
         dateStyle: "medium",
         timeStyle: "short"
       }).format(date);
+    };
+
+    const csvCell = (value: unknown) => {
+      const text = String(value ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""');
+      return `"${text}"`;
+    };
+
+    const csvRow = (values: unknown[]) => values.map(csvCell).join(";");
+
+    const fileSafe = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .toLowerCase() || "corte";
+
+    const downloadTextFile = (filename: string, content: string) => {
+      const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    const buildCloseoutCsv = (closeout: EventCloseout) => {
+      const scope = selectedDistributorId
+        ? currentCloseoutDistributors.find(
+          (distributor) => distributor.id === selectedDistributorId
+        )?.name ?? "Responsable filtrado"
+        : "Todos los responsables";
+      const rows: string[] = [
+        csvRow(["Corte operativo", closeout.event.name]),
+        csvRow(["Evento", closeout.event.id]),
+        csvRow(["Fecha evento", formatDateTime(closeout.event.date)]),
+        csvRow(["Lugar", closeout.event.venue]),
+        csvRow(["Generado", formatDateTime(closeout.generatedAt)]),
+        csvRow(["Alcance", scope]),
+        "",
+        csvRow(["Resumen"]),
+        csvRow(["Boletas", closeout.totals.tickets]),
+        csvRow(["Disponibles", closeout.totals.available]),
+        csvRow(["Asignadas", closeout.totals.assigned]),
+        csvRow(["Vendidas", closeout.totals.sold]),
+        csvRow(["Pagadas", closeout.totals.paid]),
+        csvRow(["Usadas", closeout.totals.used]),
+        csvRow(["Anuladas", closeout.totals.void]),
+        csvRow(["Recaudo aprobado", closeout.totals.grossSales]),
+        csvRow(["Capitalizacion", closeout.totals.capitalization]),
+        csvRow(["Pendiente por cobrar", closeout.totals.pendingToCollect]),
+        "",
+        csvRow(["Pagos"]),
+        csvRow(["Aprobados", closeout.payments.approved]),
+        csvRow(["Pendientes", closeout.payments.pending]),
+        csvRow(["Rechazados", closeout.payments.rejected]),
+        csvRow(["Monto aprobado", closeout.payments.approvedAmount]),
+        csvRow(["Monto pendiente", closeout.payments.pendingAmount]),
+        csvRow(["Efectivo aprobado", closeout.payments.cashApprovedAmount]),
+        csvRow(["Transferencia aprobada", closeout.payments.transferApprovedAmount]),
+        "",
+        csvRow(["Entrada"]),
+        csvRow(["Permitidas", closeout.entry.allowedTickets]),
+        csvRow(["Usadas", closeout.entry.usedTickets]),
+        csvRow(["Restantes", closeout.entry.remainingAllowedTickets]),
+        csvRow(["Bloqueadas", closeout.entry.blockedTickets]),
+        "",
+        csvRow([
+          "Responsables",
+          "Telefono",
+          "Asignadas",
+          "Vendidas",
+          "Pagadas",
+          "Usadas",
+          "Pendientes",
+          "Recaudo",
+          "Capitalizacion"
+        ]),
+        ...closeout.distributors.map((distributor) =>
+          csvRow([
+            distributor.name,
+            distributor.phone,
+            distributor.assignedTickets,
+            distributor.soldTickets,
+            distributor.paidTickets,
+            distributor.usedTickets,
+            distributor.pendingTickets,
+            distributor.grossSales,
+            distributor.capitalization
+          ])
+        ),
+        "",
+        csvRow(["Boletas pendientes", "Estado", "Responsable", "Titular", "Precio", "Capitalizacion"]),
+        ...closeout.pendingTickets.map((ticket) =>
+          csvRow([
+            ticket.code,
+            ticketStatusLabels[ticket.status],
+            ticket.distributorName ?? "Sin responsable",
+            ticket.buyerName ?? ticket.recipientName ?? "Sin titular",
+            ticket.price,
+            ticket.capitalizationAmount
+          ])
+        ),
+        "",
+        csvRow(["Pagos pendientes", "Metodo", "Recibido", "Monto", "Capitalizacion"]),
+        ...closeout.pendingPayments.map((payment) =>
+          csvRow([
+            payment.ticketCode ?? payment.ticketId,
+            paymentMethodLabels[payment.method],
+            formatDateTime(payment.receivedAt),
+            payment.amount,
+            payment.capitalizationAmount
+          ])
+        )
+      ];
+
+      return rows.join("\r\n");
     };
 
     const renderUser = (user: StoredUser) => {
@@ -539,6 +662,8 @@ const eventsUrl = `${apiBase}/events`;
     };
 
     const renderCloseout = (closeout: EventCloseout) => {
+      currentCloseout = closeout;
+
       if (!selectedDistributorId) {
         currentCloseoutDistributors = closeout.distributors;
         renderCloseoutScopeOptions();
@@ -625,9 +750,23 @@ const eventsUrl = `${apiBase}/events`;
         window.print();
       });
 
+      document.querySelector("[data-download-closeout]")?.addEventListener("click", () => {
+        if (!currentCloseout) {
+          setStatus("Genera el corte antes de descargarlo.", "error");
+          return;
+        }
+
+        const scope = selectedDistributorId ? "responsable" : "evento";
+        const filename = `${fileSafe(currentCloseout.event.name)}-${scope}-${new Date().toISOString().slice(0, 10)}.csv`;
+
+        downloadTextFile(filename, buildCloseoutCsv(currentCloseout));
+        setStatus("CSV del corte descargado.", "success");
+      });
+
       document.querySelector("[data-event-selector]")?.addEventListener("change", (event) => {
         selectedEventId = (event.currentTarget as HTMLSelectElement).value;
         selectedDistributorId = "";
+        currentCloseout = null;
         currentCloseoutDistributors = [];
         renderCloseoutScopeOptions();
         void loadCloseout();
@@ -637,6 +776,7 @@ const eventsUrl = `${apiBase}/events`;
         .querySelector("[data-closeout-distributor-filter]")
         ?.addEventListener("change", (event) => {
           selectedDistributorId = (event.currentTarget as HTMLSelectElement).value;
+          currentCloseout = null;
           void loadCloseout();
         });
     };
@@ -777,6 +917,15 @@ const eventsUrl = `${apiBase}/events`;
             >
               <Printer size={17} />
               Imprimir
+            </button>
+            <button
+              class="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-download-closeout
+              title="Descargar CSV"
+              type="button"
+            >
+              <Download size={17} />
+              CSV
             </button>
             <div class="flex h-10 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3">
               <ShieldCheck class="text-emerald-600" size={17} />

@@ -176,7 +176,7 @@ El dashboard interno de Astro usa la ruta protegida `GET /api/events/:eventId/su
 
 Cuando el usuario autenticado es `regular`, el resumen protegido se calcula solo con las boletas de responsables vinculados a su cuenta. Los usuarios `supervisor` y `admin` reciben el resumen del evento completo. La ruta publica `GET /api/public/events/:eventId/dashboard` conserva el resumen sanitizado general sin sesion.
 
-El corte operativo de Astro usa `GET /api/events/:eventId/closeout` y queda reservado para `supervisor` y `admin`. Es una lectura calculada del estado actual del evento; todavia no bloquea ventas ni cambia el estado del evento. La ruta acepta filtros opcionales `distributorId` y `userId` para generar cortes por responsable o por usuario vinculado.
+El corte operativo de Astro usa `GET /api/events/:eventId/closeout` y queda reservado para `supervisor` y `admin`. Es una lectura calculada del estado actual del evento; todavia no bloquea ventas ni cambia el estado del evento. La ruta acepta filtros opcionales `distributorId` y `userId` para generar cortes por responsable o por usuario vinculado. La pantalla permite imprimir o descargar en CSV el corte visible.
 
 Si un `admin` marca un evento como `closed`, la API deja disponibles las consultas historicas, dashboard, corte y auditoria, pero bloquea cambios operativos: crear responsables, crear lotes, asignar, reservar, liberar reserva, vender, anular, validar pagos y registrar ingreso. Para hacer ajustes posteriores, un `admin` debe reabrir el evento cambiando su `status` a `active`.
 
@@ -615,4 +615,4 @@ La columna `last_login_at` permite confirmar que el login realmente paso por la 
 
 ## Pendientes
 
-1. Definir si se necesitan exportaciones formales de cortes o reportes financieros adicionales.
+1. Definir si se necesitan reportes financieros adicionales mas alla del corte operativo en pantalla, impresion y CSV.
