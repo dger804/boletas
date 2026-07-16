@@ -73,6 +73,14 @@ pnpm.cmd build
 
 La prueba automatizada `completes the MVP ticket lifecycle from event setup to closeout` cubre el ciclo principal en memoria. La prueba manual anterior valida permisos, UI, despliegue y base real.
 
+Despues de desplegar `main`, ejecutar:
+
+```powershell
+pnpm.cmd smoke:prod
+```
+
+Ese smoke check valida que el frontend responda, que el API publique `/api/health`, que `/api/health/db` pueda conectar a la base y que el backend entregue los headers de seguridad base. Si la base esta en mantenimiento o se quiere revisar solo disponibilidad HTTP, puede usarse `-SkipDatabase`.
+
 ## Limpieza despues de probar
 
 - Si el evento fue solo de prueba, dejarlo en `closed`.

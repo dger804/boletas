@@ -158,12 +158,24 @@ Preferir FTPS cuando Hostinger lo permita porque cifra credenciales y contenido 
 
 Despues del despliegue:
 
-1. Abrir `https://boletas.corporacionceer.com`.
-2. Confirmar que el dashboard carga.
-3. Confirmar que el backend sigue respondiendo:
+1. Ejecutar el smoke check desde una maquina con salida a internet:
+
+```powershell
+pnpm.cmd smoke:prod
+```
+
+2. Si se esta probando otro dominio o ambiente:
+
+```powershell
+pnpm.cmd smoke:prod -- -FrontendUrl "https://boletas.corporacionceer.com" -ApiBaseUrl "https://api-boletas.corporacionceer.com/api"
+```
+
+3. Abrir `https://boletas.corporacionceer.com`.
+4. Confirmar que el dashboard carga.
+5. Confirmar que el backend sigue respondiendo:
 
 ```txt
 https://api-boletas.corporacionceer.com/api/health
 ```
 
-4. Si el frontend consume API desde el navegador, verificar que no haya errores CORS en la consola.
+6. Si el frontend consume API desde el navegador, verificar que no haya errores CORS en la consola.
