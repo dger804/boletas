@@ -1,19 +1,17 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
+import {
+  getAllowedCorsOrigins,
+  securityHeadersMiddleware
+} from "./app-security";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const allowedOrigins =
-    process.env.CORS_ORIGIN?.split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean) ?? [];
-
-  if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
-    throw new Error("CORS_ORIGIN is required in production");
-  }
+  const allowedOrigins = getAllowedCorsOrigins();
 
   app.setGlobalPrefix("api");
+  app.use(securityHeadersMiddleware);
   app.useGlobalPipes(
     new ValidationPipe({
       forbidNonWhitelisted: true,

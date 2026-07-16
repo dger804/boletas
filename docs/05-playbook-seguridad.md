@@ -101,13 +101,13 @@ Reglas:
 
 ### CORS y headers
 
-- En produccion, `CORS_ORIGIN` debe ser obligatorio.
-- No usar wildcard con credenciales.
-- Agregar headers de seguridad cuando el backend sirva produccion:
-  - `Content-Security-Policy`
+- En produccion, `CORS_ORIGIN` es obligatorio y el API falla al arrancar si falta.
+- No usar wildcard con credenciales en produccion.
+- El backend aplica headers base de seguridad en todas las respuestas:
+  - `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`
   - `X-Content-Type-Options: nosniff`
-  - `Referrer-Policy`
-  - `Permissions-Policy`
+  - `Referrer-Policy: no-referrer`
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 - Mantener API y frontend bajo el mismo dominio cuando sea viable.
 
 ### Base de datos
@@ -147,6 +147,7 @@ Antes de aprobar un PR:
 - `DATABASE_URL` usa credenciales de produccion privadas.
 - Hay SSL activo.
 - El subdominio esperado resuelve correctamente.
+- El API responde con headers de seguridad base.
 - Los endpoints sensibles anonimos devuelven `401` o `403`.
 - Las evidencias de pago no son publicas.
 - `pnpm audit --audit-level moderate` no reporta vulnerabilidades sin aceptar.

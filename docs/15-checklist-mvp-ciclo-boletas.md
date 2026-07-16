@@ -16,6 +16,7 @@ evento -> usuarios -> responsables -> lote -> asignacion -> reserva opcional -> 
 - Migraciones Prisma aplicadas en Render durante el build.
 - `AUTH_TOKEN_SECRET`, `DATABASE_URL` y `CORS_ORIGIN` configurados en Render.
 - `ADMIN_API_TOKEN` no configurado ni usado.
+- El API en produccion arranca con `NODE_ENV=production` y responde con headers de seguridad base.
 - Usuario `admin` activo.
 - Al menos un usuario `supervisor` activo.
 - Al menos un usuario `regular` activo.
