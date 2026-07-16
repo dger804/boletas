@@ -39,14 +39,15 @@ No pegues contrasenas, tokens ni URLs con credenciales en chats, commits o captu
 12. Cerrar sesion e iniciar sesion como `supervisor` o `admin`.
 13. Ir a `/payments` y aprobar la evidencia pendiente.
 14. Cerrar sesion e iniciar sesion como `regular`.
-15. Ir a `/check-in` y registrar ingreso de la boleta pagada.
-16. Entrar a `/dashboard` y confirmar totales de vendidas, pagadas y usadas.
-17. Entrar a `/closeout` con `supervisor` o `admin` y revisar recaudo, entrada y pendientes.
-18. En `/closeout`, filtrar por responsable y confirmar que recaudo, entrada y pendientes cambian al alcance seleccionado.
-19. Descargar el CSV del corte visible y confirmar que contiene resumen, responsables, boletas pendientes y pagos pendientes.
-20. Entrar a `/audit` con `supervisor` o `admin` y confirmar acciones recientes.
-21. Entrar a `/events` como `admin` y cambiar el evento a `closed`.
-22. Confirmar que ventas, asignaciones, pagos e ingreso quedan bloqueados para ese evento cerrado.
+15. Ir a `/check-in`, escribir el codigo de la boleta pagada y presionar Enter o `Validar codigo`.
+16. Confirmar que el ingreso se registra y que una segunda validacion del mismo codigo queda como `used`.
+17. Entrar a `/dashboard` y confirmar totales de vendidas, pagadas y usadas.
+18. Entrar a `/closeout` con `supervisor` o `admin` y revisar recaudo, entrada y pendientes.
+19. En `/closeout`, filtrar por responsable y confirmar que recaudo, entrada y pendientes cambian al alcance seleccionado.
+20. Descargar el CSV del corte visible y confirmar que contiene resumen, responsables, boletas pendientes y pagos pendientes.
+21. Entrar a `/audit` con `supervisor` o `admin` y confirmar acciones recientes.
+22. Entrar a `/events` como `admin` y cambiar el evento a `closed`.
+23. Confirmar que ventas, asignaciones, pagos e ingreso quedan bloqueados para ese evento cerrado.
 
 ## Resultado esperado
 
@@ -54,7 +55,7 @@ No pegues contrasenas, tokens ni URLs con credenciales en chats, commits o captu
 - El dashboard de un usuario `regular` muestra totales de sus boletas vinculadas, no del evento completo.
 - La venta crea una evidencia `pending`.
 - La aprobacion de pago cambia la boleta a `paid`.
-- El check-in cambia la boleta a `used` y registra el usuario autenticado como responsable del ingreso.
+- El check-in por codigo cambia la boleta a `used` y registra el usuario autenticado como responsable del ingreso.
 - El dashboard publico/protegido no revela compradores, telefonos, referencias ni URLs de evidencia.
 - El corte operativo muestra recaudo aprobado, capitalizacion, entrada y pendientes.
 - El corte filtrado por responsable solo muestra boletas y pagos de ese responsable.

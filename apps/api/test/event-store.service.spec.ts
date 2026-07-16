@@ -1224,6 +1224,15 @@ describe("EventStoreService", () => {
       }
     ]);
     await expect(
+      store.lookupTicketByCode(event.id, ownTicket.code.toLowerCase(), regularUser)
+    ).resolves.toMatchObject({
+      distributorId: ownDistributor.id,
+      id: ownTicket.id
+    });
+    await expect(
+      store.lookupTicketByCode(event.id, otherTicket.code, regularUser)
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
       store.registerSale(
         otherTicket.id,
         {

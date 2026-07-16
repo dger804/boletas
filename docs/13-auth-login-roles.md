@@ -155,6 +155,7 @@ PATCH /api/events/:eventId/distributors/:distributorId supervisor, admin
 POST  /api/events/:eventId/tickets/batch  admin
 
 GET   /api/tickets                        regular, supervisor, admin
+GET   /api/tickets/lookup                 regular, supervisor, admin
 PATCH /api/tickets/:ticketId/assign       supervisor, admin
 PATCH /api/tickets/:ticketId/reserve      regular, supervisor, admin
 PATCH /api/tickets/:ticketId/release      regular, supervisor, admin
@@ -377,6 +378,17 @@ https://boletas.corporacionceer.com/check-in
 ```
 
 La pantalla permite seleccionar un evento, buscar por codigo, comprador, telefono o responsable, y listar las boletas con su estado operativo.
+
+Para validar en puerta se puede escribir el codigo de boleta y presionar Enter o `Validar codigo`. La pantalla consulta:
+
+```txt
+GET /api/tickets/lookup?eventId=<event_id>&code=<codigo>
+Authorization: Bearer <token>
+```
+
+Si la boleta esta `paid`, registra el ingreso con `PATCH /api/tickets/:ticketId/check-in`. Si esta `used`, `sold`, `reserved`, `assigned`, `available` o `void`, muestra el estado y no registra ingreso.
+
+El lookup respeta el mismo alcance de usuario que la lista de boletas: un `regular` solo puede consultar codigos de responsables vinculados a su cuenta.
 
 Las boletas en estado `paid` muestran la accion `Registrar ingreso`, que consume:
 

@@ -27,6 +27,16 @@ export class TicketsController {
   constructor(private readonly store: EventStoreService) {}
 
   @Roles("regular", "supervisor", "admin")
+  @Get("lookup")
+  lookupTicket(
+    @Query("eventId") eventId: string | undefined,
+    @Query("code") code: string | undefined,
+    @Req() request: RequestWithUser
+  ) {
+    return this.store.lookupTicketByCode(eventId, code, request.user);
+  }
+
+  @Roles("regular", "supervisor", "admin")
   @Get()
   listTickets(
     @Query("eventId") eventId: string | undefined,

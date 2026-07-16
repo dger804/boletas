@@ -407,6 +407,12 @@ const ticketsUrl = `${apiBase}/tickets`;
       return normalizeSearch(input?.value ?? "");
     };
 
+    const getRawSearchTerm = () => {
+      const input = document.querySelector<HTMLInputElement>("[data-checkin-search]");
+
+      return input?.value.trim() ?? "";
+    };
+
     const getVisibleTickets = () => {
       const term = getSearchTerm();
 
@@ -717,6 +723,66 @@ const ticketsUrl = `${apiBase}/tickets`;
       }
     };
 
+    const upsertCurrentTicket = (ticket: TicketRecord) => {
+      const exists = currentTickets.some((item) => item.id === ticket.id);
+
+      currentTickets = exists
+        ? currentTickets.map((item) => (item.id === ticket.id ? ticket : item))
+        : [ticket, ...currentTickets];
+    };
+
+    const validateCodeSearch = async () => {
+      const { ticketsUrl } = getConfig();
+      const code = getRawSearchTerm();
+
+      if (!ticketsUrl) {
+        setStatus("No se encontro la ruta de boletas.", "error");
+        return;
+      }
+
+      if (!selectedEventId) {
+        setStatus("Selecciona un evento para validar el codigo.", "error");
+        return;
+      }
+
+      if (!code) {
+        setStatus("Escribe el codigo de la boleta.", "error");
+        return;
+      }
+
+      if (isSelectedEventClosed()) {
+        setStatus("El evento esta cerrado y no acepta cambios operativos.", "error");
+        return;
+      }
+
+      setStatus(`Validando codigo ${code}.`);
+
+      try {
+        const lookupUrl = `${ticketsUrl}/lookup?eventId=${encodeURIComponent(selectedEventId)}&code=${encodeURIComponent(code)}`;
+        const ticket = await requestJson<TicketRecord>(lookupUrl);
+
+        if (!isTicketRecord(ticket)) {
+          throw new Error("La API no devolvio una boleta valida.");
+        }
+
+        upsertCurrentTicket(ticket);
+        renderTickets();
+
+        if (ticket.status === "paid") {
+          await checkInTicket(ticket.id);
+          return;
+        }
+
+        const statusLabel = ticketStatusLabels[ticket.status];
+        setStatus(`Boleta ${ticket.code}: ${statusLabel}. No se puede registrar ingreso.`, "error");
+      } catch (error) {
+        setStatus(
+          error instanceof Error ? error.message : "No fue posible validar el codigo.",
+          "error"
+        );
+      }
+    };
+
     const bindCheckInActions = () => {
       document.querySelector("[data-refresh-checkin]")?.addEventListener("click", () => {
         void loadEvents();
@@ -745,6 +811,21 @@ const ticketsUrl = `${apiBase}/tickets`;
 
         renderTickets();
       });
+
+      document.querySelector("[data-validate-code]")?.addEventListener("click", () => {
+        void validateCodeSearch();
+      });
+
+      document
+        .querySelector<HTMLInputElement>("[data-checkin-search]")
+        ?.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") {
+            return;
+          }
+
+          event.preventDefault();
+          void validateCodeSearch();
+        });
 
       document.querySelector("[data-checkin-body]")?.addEventListener("click", (event) => {
         const target = event.target;
@@ -950,6 +1031,14 @@ const ticketsUrl = `${apiBase}/tickets`;
 
             <button
               class="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              data-validate-code
+              type="button"
+            >
+              Validar codigo
+            </button>
+
+            <button
+              class="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
               data-clear-checkin-search
               type="button"
             >

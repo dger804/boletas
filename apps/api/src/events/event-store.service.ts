@@ -874,6 +874,61 @@ export class EventStoreService {
       .map((ticket) => this.withDistributorContact(ticket));
   }
 
+  async lookupTicketByCode(
+    eventId: string | undefined,
+    code: string | undefined,
+    actor?: AuthenticatedUser
+  ) {
+    const normalizedEventId = eventId?.trim();
+    const normalizedCode = code?.trim();
+
+    if (!normalizedEventId || !normalizedCode) {
+      throw new BadRequestException("eventId and code are required");
+    }
+
+    if (this.prisma?.isConfigured()) {
+      const ticket = await this.prisma.ticket.findFirst({
+        include: {
+          distributor: {
+            select: {
+              email: true,
+              name: true,
+              notes: true,
+              phone: true
+            }
+          }
+        },
+        where: {
+          code: normalizedCode,
+          eventId: normalizedEventId
+        }
+      });
+
+      if (!ticket) {
+        throw new NotFoundException("ticket not found");
+      }
+
+      await this.assertActorCanAccessPrismaTicket(ticket, actor);
+
+      return this.toTicketRecord(ticket);
+    }
+
+    this.findEvent(normalizedEventId);
+    const ticket = this.tickets.find(
+      (item) =>
+        item.eventId === normalizedEventId &&
+        item.code.toLowerCase() === normalizedCode.toLowerCase()
+    );
+
+    if (!ticket) {
+      throw new NotFoundException("ticket not found");
+    }
+
+    this.assertActorCanAccessTicket(ticket, actor);
+
+    return this.withDistributorContact(ticket);
+  }
+
   async assignTicket(
     ticketId: string,
     dto: AssignTicketDto,

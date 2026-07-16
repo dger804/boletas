@@ -51,6 +51,25 @@ describe("event action actors", () => {
     );
   });
 
+  it("uses the authenticated user for ticket code lookup", () => {
+    const store = {
+      lookupTicketByCode: jest.fn()
+    } as unknown as EventStoreService;
+    const controller = new TicketsController(store);
+
+    controller.lookupTicket(
+      "evt_demo",
+      "VIP-001",
+      { headers: {}, user }
+    );
+
+    expect(store.lookupTicketByCode).toHaveBeenCalledWith(
+      "evt_demo",
+      "VIP-001",
+      user
+    );
+  });
+
   it("limits ticket voiding to management roles", () => {
     const roles = Reflect.getMetadata(
       ROLES_KEY,
@@ -72,5 +91,14 @@ describe("event action actors", () => {
 
     expect(reserveRoles).toEqual(["regular", "supervisor", "admin"]);
     expect(releaseRoles).toEqual(["regular", "supervisor", "admin"]);
+  });
+
+  it("allows operational roles to look up tickets by code", () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      TicketsController.prototype.lookupTicket
+    );
+
+    expect(roles).toEqual(["regular", "supervisor", "admin"]);
   });
 });
