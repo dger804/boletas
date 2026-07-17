@@ -1,6 +1,7 @@
 ---
 import {
   CalendarDays,
+  Download,
   LogOut,
   Mail,
   NotebookText,
@@ -493,6 +494,100 @@ const usersUrl = `${apiBase}/auth/users`;
         dateStyle: "medium",
         timeStyle: "short"
       }).format(date);
+    };
+
+    const csvCell = (value: unknown) => {
+      const text = String(value ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""');
+
+      return `"${text}"`;
+    };
+
+    const csvRow = (values: unknown[]) => values.map(csvCell).join(",");
+
+    const downloadTextFile = (filename: string, content: string) => {
+      const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    const safeFilename = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .toLowerCase() || "evento";
+
+    const buildTicketsCsv = (tickets: TicketRecord[]) => {
+      const event = getSelectedEvent();
+      const rows = [
+        csvRow(["Inventario de boletas", event?.name ?? "Evento"]),
+        csvRow(["Fecha evento", event ? formatDate(event.date) : "Sin evento"]),
+        csvRow(["Lugar", event?.venue ?? "Sin evento"]),
+        csvRow(["Exportado", formatDate(new Date().toISOString())]),
+        "",
+        csvRow([
+          "Codigo",
+          "Estado",
+          "Responsable",
+          "Telefono responsable",
+          "Titular",
+          "Telefono comprador",
+          "Metodo pago",
+          "Valor",
+          "Capitalizacion",
+          "Vendida",
+          "Pagada",
+          "Usada",
+          "Ingreso registrado por",
+          "Notas"
+        ]),
+        ...tickets.map((ticket) =>
+          csvRow([
+            ticket.code,
+            ticketStatusLabels[ticket.status],
+            ticket.distributorName ?? "Sin responsable",
+            ticket.distributorPhone ?? "",
+            ticket.buyerName ?? ticket.recipientName ?? "Sin titular",
+            ticket.buyerPhone ?? "",
+            ticket.paymentMethod ? paymentMethodLabels[ticket.paymentMethod] : "Sin pago",
+            ticket.price,
+            ticket.capitalizationAmount,
+            ticket.soldAt ? formatDate(ticket.soldAt) : "",
+            ticket.paidAt ? formatDate(ticket.paidAt) : "",
+            ticket.usedAt ? formatDate(ticket.usedAt) : "",
+            ticket.checkedInBy ?? "",
+            ticket.notes ?? ""
+          ])
+        )
+      ];
+
+      return rows.join("\r\n");
+    };
+
+    const exportTicketsCsv = () => {
+      if (!selectedEventId) {
+        setStatus("Selecciona un evento para exportar boletas.", "error");
+        return;
+      }
+
+      if (currentTickets.length === 0) {
+        setStatus("No hay boletas cargadas para exportar.", "error");
+        return;
+      }
+
+      const event = getSelectedEvent();
+      const filename = `boletas-${safeFilename(event?.name ?? selectedEventId)}.csv`;
+
+      downloadTextFile(filename, buildTicketsCsv(currentTickets));
+      setStatus("CSV de boletas descargado.", "success");
     };
 
     const getSelectedEvent = () =>
@@ -1325,6 +1420,10 @@ const usersUrl = `${apiBase}/auth/users`;
     const bindTicketActions = () => {
       document.querySelector("[data-refresh-tickets]")?.addEventListener("click", () => {
         void loadEvents();
+      });
+
+      document.querySelector("[data-export-tickets-csv]")?.addEventListener("click", () => {
+        exportTicketsCsv();
       });
 
       document
@@ -2298,6 +2397,15 @@ const usersUrl = `${apiBase}/auth/users`;
                 <h2 class="text-sm font-semibold text-zinc-950">Inventario</h2>
                 <p class="mt-1 text-xs text-zinc-500">Boletas del evento seleccionado</p>
               </div>
+              <button
+                class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-200 px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                data-export-tickets-csv
+                title="Descargar inventario"
+                type="button"
+              >
+                <Download size={17} />
+                CSV
+              </button>
             </div>
 
             <div class="overflow-x-auto">

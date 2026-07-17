@@ -31,28 +31,30 @@ No pegues contrasenas, tokens ni URLs con credenciales en chats, commits o captu
 4. Ir a `/tickets`, seleccionar el evento y crear un responsable.
 5. Como `admin`, vincular ese responsable con la cuenta `regular`.
 6. Crear un lote pequeno de boletas, por ejemplo 2 boletas.
-7. Asignar una boleta al responsable vinculado.
-8. Cerrar sesion e iniciar sesion como usuario `regular`.
-9. En `/tickets`, confirmar que solo aparecen boletas dentro de su alcance.
-10. Reservar la boleta asignada.
-11. Registrar venta con metodo `transfer` o `cash`.
-12. Cerrar sesion e iniciar sesion como `supervisor` o `admin`.
-13. Ir a `/payments` y aprobar la evidencia pendiente.
-14. Cerrar sesion e iniciar sesion como `regular`.
-15. Ir a `/check-in`, escribir el codigo de la boleta pagada y presionar Enter o `Validar codigo`.
-16. Confirmar que el ingreso se registra y que una segunda validacion del mismo codigo queda como `used`.
-17. Entrar a `/dashboard` y confirmar totales de vendidas, pagadas y usadas.
-18. Entrar a `/closeout` con `supervisor` o `admin` y revisar recaudo, entrada y pendientes.
-19. En `/closeout`, filtrar por responsable y confirmar que recaudo, entrada y pendientes cambian al alcance seleccionado.
-20. Descargar el CSV del corte visible y confirmar que contiene resumen, responsables, boletas pendientes y pagos pendientes.
-21. Entrar a `/audit` con `supervisor` o `admin` y confirmar acciones recientes.
-22. Entrar a `/events` como `admin` y cambiar el evento a `closed`.
-23. Confirmar que ventas, asignaciones, pagos e ingreso quedan bloqueados para ese evento cerrado.
+7. Descargar el CSV de inventario desde `/tickets` y confirmar que contiene codigos, responsables, titulares, estados y valores sin URLs de evidencia.
+8. Asignar una boleta al responsable vinculado.
+9. Cerrar sesion e iniciar sesion como usuario `regular`.
+10. En `/tickets`, confirmar que solo aparecen boletas dentro de su alcance.
+11. Reservar la boleta asignada.
+12. Registrar venta con metodo `transfer` o `cash`.
+13. Cerrar sesion e iniciar sesion como `supervisor` o `admin`.
+14. Ir a `/payments` y aprobar la evidencia pendiente.
+15. Cerrar sesion e iniciar sesion como `regular`.
+16. Ir a `/check-in`, escribir el codigo de la boleta pagada y presionar Enter o `Validar codigo`.
+17. Confirmar que el ingreso se registra y que una segunda validacion del mismo codigo queda como `used`.
+18. Entrar a `/dashboard` y confirmar totales de vendidas, pagadas y usadas.
+19. Entrar a `/closeout` con `supervisor` o `admin` y revisar recaudo, entrada y pendientes.
+20. En `/closeout`, filtrar por responsable y confirmar que recaudo, entrada y pendientes cambian al alcance seleccionado.
+21. Descargar el CSV del corte visible y confirmar que contiene resumen, responsables, boletas pendientes y pagos pendientes.
+22. Entrar a `/audit` con `supervisor` o `admin` y confirmar acciones recientes.
+23. Entrar a `/events` como `admin` y cambiar el evento a `closed`.
+24. Confirmar que ventas, asignaciones, pagos e ingreso quedan bloqueados para ese evento cerrado.
 
 ## Resultado esperado
 
 - El usuario `regular` no ve ni opera boletas fuera de su responsable vinculado.
 - El dashboard de un usuario `regular` muestra totales de sus boletas vinculadas, no del evento completo.
+- El CSV de inventario corresponde a las boletas visibles para el usuario autenticado.
 - La venta crea una evidencia `pending`.
 - La aprobacion de pago cambia la boleta a `paid`.
 - El check-in por codigo cambia la boleta a `used` y registra el usuario autenticado como responsable del ingreso.
